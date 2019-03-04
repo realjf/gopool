@@ -91,12 +91,10 @@ func (p *Pool) runWorker(workId int, ctx context.Context) {
 		ctxTimeoutFunc()
 	}()
 
-	completeChan := make(chan bool)
-
 	for task := range p.JobQueue {
 		// @todo 死锁问题
 		worker := NewWorker(workId, task)
-		_ = worker.Run(ctxWithTimeout, completeChan)
+		_ = worker.Run(ctxWithTimeout)
 		// 返回处理结果
 		p.result = append(p.result, worker.Task.Result)
 	}

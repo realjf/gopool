@@ -14,22 +14,13 @@ func NewWorker(workID int, task *Task) *Worker {
 	}
 }
 
-func (w *Worker) Run(ctx context.Context, ch chan bool) error {
-	defer func() {
-		ch <- true
-	}()
-
-	err := make(chan error)
-	go func(err chan error) {
-		err <- w.Task.Execute()
-	}(err)
-
-	var err1 error
+func (w *Worker) Run(ctx context.Context) error {
 
 	select {
-		case <-ctx.Done():
-		case err1 = <- err:
-			return err1
+	case <-ctx.Done():
+	default:
+		err := w.Task.Execute()
+		return err
 	}
 	return nil
 }
