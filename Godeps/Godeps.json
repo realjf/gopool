@@ -2,10 +2,5 @@
 	"ImportPath": "gopool",
 	"GoVersion": "go1.11",
 	"GodepVersion": "v80",
-	"Deps": [
-		{
-			"ImportPath": "kboard/exception",
-			"Rev": "0c465138380d635ccde8c9c9502f4842f53c9f77"
-		}
-	]
+	"Deps": []
 }

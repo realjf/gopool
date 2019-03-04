@@ -2,7 +2,8 @@ package gopool
 
 import (
 	"context"
-	"kboard/exception"
+	"errors"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -76,7 +77,7 @@ func (p *Pool) DefaultInit() {
 // 添加任务到任务队列
 func (p *Pool) AddTask(task *Task) error {
 	if task == nil {
-		return exception.NewError("add task error: task is nil")
+		return errors.New("add task error: task is nil")
 	}
 	p.TaskQueue <- task
 	p.taskNum++
@@ -85,10 +86,17 @@ func (p *Pool) AddTask(task *Task) error {
 
 // 运行一个goroutine协程
 func (p *Pool) runWorker(workId int, ctx context.Context) {
+	ctxWithTimeout, ctxTimeoutFunc := context.WithTimeout(ctx, time.Duration(600) * time.Second)
+	defer func() {
+		ctxTimeoutFunc()
+	}()
+
+	completeChan := make(chan bool)
+
 	for task := range p.JobQueue {
 		// @todo 死锁问题
 		worker := NewWorker(workId, task)
-		worker.Run()
+		_ = worker.Run(ctxWithTimeout, completeChan)
 		// 返回处理结果
 		p.result = append(p.result, worker.Task.Result)
 	}
@@ -123,10 +131,22 @@ func (p *Pool) Run() {
 	// 初始化
 	p.init()
 
-	for task := range p.TaskQueue {
-		// @todo 死锁问题
-		p.JobQueue <- task
+	for {
+		select {
+		case task := <-p.TaskQueue:
+			fmt.Println("add task")
+			p.JobQueue <- task
+		case <-p.ctx.Done():
+			fmt.Println("main done")
+			goto stop
+		}
 	}
+
+	stop:
+	//for task := range p.TaskQueue {
+	//	// @todo 死锁问题
+	//	p.JobQueue <- task
+	//}
 
 	// 结束
 	p.stop()
