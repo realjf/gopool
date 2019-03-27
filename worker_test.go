@@ -23,6 +23,7 @@ func TestNewWorker(t *testing.T) {
 	ctx := context.Background()
 	for i := 1; i<= 10000; i++ {
 		go func(taskId int) {
+			// 超时限制 600s
 			ctxWithTimeout, ctxTimeoutFunc := context.WithTimeout(ctx, time.Duration(600) * time.Second)
 			defer func() {
 				ctxTimeoutFunc()

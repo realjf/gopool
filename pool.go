@@ -86,6 +86,7 @@ func (p *Pool) AddTask(task *Task) error {
 
 // 运行一个goroutine协程
 func (p *Pool) runWorker(workId int, ctx context.Context) {
+	// 超时限制 600s
 	ctxWithTimeout, ctxTimeoutFunc := context.WithTimeout(ctx, time.Duration(600) * time.Second)
 	defer func() {
 		ctxTimeoutFunc()
@@ -129,6 +130,7 @@ func (p *Pool) Run() {
 	// 初始化
 	p.init()
 
+	stop:
 	for {
 		select {
 		case task := <-p.TaskQueue:
@@ -136,11 +138,10 @@ func (p *Pool) Run() {
 			p.JobQueue <- task
 		case <-p.ctx.Done():
 			fmt.Println("main done")
-			goto stop
+			break stop
 		}
 	}
 
-	stop:
 	//for task := range p.TaskQueue {
 	//	// @todo 死锁问题
 	//	p.JobQueue <- task
