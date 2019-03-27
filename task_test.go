@@ -1,10 +1,9 @@
 package gopool
 
 import (
-	"testing"
 	"fmt"
+	"testing"
 )
-
 
 func taskFuncv1(args interface{}) (error, interface{}) {
 	fmt.Println("task ", args, "completed")
@@ -18,7 +17,7 @@ func callbackFuncv1(result interface{}) (error, interface{}) {
 }
 
 func TestNewTask(t *testing.T) {
-	for i := 1; i<= 100000; i++{
+	for i := 1; i <= 100000; i++ {
 		task := NewTask(taskFuncv1, callbackFuncv1, i)
 		err := task.Execute()
 		if err != nil {
@@ -27,5 +26,3 @@ func TestNewTask(t *testing.T) {
 	}
 	t.Fatalf("com")
 }
-
-

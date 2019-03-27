@@ -1,9 +1,7 @@
 package gopool
 
 import (
-	"context"
 	"errors"
-	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -22,21 +20,21 @@ type pool interface {
 	DefaultInit()
 	GetRunTime() float64
 	GetResult() []interface{}
+	SetTaskNum(int)
 }
 
 // goroutine协程池
 type Pool struct {
-	cap           int             // 协程池容量
+	cap           int             // 协程池work容量
 	taskNum       int             // 接收任务总数量
 	TaskQueue     chan *Task      // 接收任务队列
 	JobQueue      chan *Task      // 工作队列
 	startTime     time.Time       // 开始时间
 	endTime       time.Time       // 结束时间
 	wg            *sync.WaitGroup // 同步所有goroutine
-	ctx           context.Context
-	ctxCancelFunc context.CancelFunc
-	ctxWithCancel context.Context
 	result        []interface{} // 所有的运行结果
+	ch            chan bool
+	lock          sync.RWMutex
 }
 
 func NewPool(cap int) *Pool {
@@ -46,7 +44,8 @@ func NewPool(cap int) *Pool {
 		TaskQueue: make(chan *Task, 100),
 		JobQueue:  make(chan *Task, 100),
 		wg:        &sync.WaitGroup{},
-		ctx:       context.Background(),
+		ch:        make(chan bool),
+		lock:      sync.RWMutex{},
 	}
 }
 
@@ -59,19 +58,18 @@ func (p *Pool) init() {
 	if p.cap >= POOL_MAX_CAP {
 		p.cap = POOL_MAX_CAP
 	}
-	// 从ctx中派生一个context
-	p.ctxWithCancel, p.ctxCancelFunc = context.WithCancel(p.ctx)
 
 	// 初始化协程池
-	for i := 0; i < p.cap; i++ {
-		go p.runWorker(i, p.ctxWithCancel)
+	for i := 1; i <= p.cap; i++ {
+		go p.runWorker(i, p.ch)
+		log.Printf("worker [%v]", i)
 	}
 }
 
 // 默认初始化
 func (p *Pool) DefaultInit() {
 	p.cap = 100
-	p.cap = 0
+	p.taskNum = 0
 }
 
 // 添加任务到任务队列
@@ -80,24 +78,31 @@ func (p *Pool) AddTask(task *Task) error {
 		return errors.New("add task error: task is nil")
 	}
 	p.TaskQueue <- task
-	p.taskNum++
 	return nil
 }
 
-// 运行一个goroutine协程
-func (p *Pool) runWorker(workId int, ctx context.Context) {
-	// 超时限制 600s
-	ctxWithTimeout, ctxTimeoutFunc := context.WithTimeout(ctx, time.Duration(600) * time.Second)
-	defer func() {
-		ctxTimeoutFunc()
-	}()
+func (p *Pool) SetTaskNum(total int) {
+	p.taskNum = total
+}
 
-	for task := range p.JobQueue {
-		// @todo 死锁问题
-		worker := NewWorker(workId, task)
-		_ = worker.Run(ctxWithTimeout)
-		// 返回处理结果
-		p.result = append(p.result, worker.Task.Result)
+// 运行一个goroutine协程
+func (p *Pool) runWorker(workId int, ch chan bool) {
+stop:
+	for {
+		select {
+		case task := <-p.JobQueue:
+			if task == nil {
+				continue
+			}
+			worker := NewWorker(workId, task)
+			_ = worker.Run()
+			// 返回处理结果
+			p.lock.Lock()
+			p.result = append(p.result, worker.Task.Result)
+			p.lock.Unlock()
+		case <-ch:
+			break stop
+		}
 	}
 }
 
@@ -115,6 +120,8 @@ func (p *Pool) stop() {
 	log.Println("close job channel")
 	close(p.JobQueue)
 
+	close(p.ch)
+
 	// 运行结束时间
 	p.endTime = time.Now()
 }
@@ -130,22 +137,20 @@ func (p *Pool) Run() {
 	// 初始化
 	p.init()
 
-	stop:
+stop:
 	for {
 		select {
 		case task := <-p.TaskQueue:
-			fmt.Println("add task")
 			p.JobQueue <- task
-		case <-p.ctx.Done():
-			fmt.Println("main done")
-			break stop
+		default:
+			p.lock.RLock()
+			if len(p.result) == p.taskNum {
+				p.ch <- true // 通知回收goroutine
+				break stop
+			}
+			p.lock.RUnlock()
 		}
 	}
-
-	//for task := range p.TaskQueue {
-	//	// @todo 死锁问题
-	//	p.JobQueue <- task
-	//}
 
 	// 结束
 	p.stop()

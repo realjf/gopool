@@ -17,7 +17,7 @@ func TestNewPool(t *testing.T) {
 	//}()
 
 	pool := NewPool(100)
-
+	pool.SetTaskNum(100000)
 	go func() {
 		for i := 0; i < 100000; i++ {
 			pool.AddTask(NewTask(taskFunc, callbackFunc, i))
@@ -26,8 +26,8 @@ func TestNewPool(t *testing.T) {
 
 	pool.Run()
 
-	fmt.Printf("%v", pool.GetResult())
-	fmt.Printf("program total run time is %f seconds", pool.GetRunTime())
+	t.Logf("%v", pool.GetResult())
+	t.Errorf("program total run time is %f seconds", pool.GetRunTime())
 
 }
 
