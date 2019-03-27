@@ -20,21 +20,21 @@ type pool interface {
 	DefaultInit()
 	GetRunTime() float64
 	GetResult() []interface{}
-	SetTaskNum(int)
+	SetTaskNum(int) // 设置任务总数
 }
 
 // goroutine协程池
 type Pool struct {
-	cap           int             // 协程池work容量
-	taskNum       int             // 接收任务总数量
-	TaskQueue     chan *Task      // 接收任务队列
-	JobQueue      chan *Task      // 工作队列
-	startTime     time.Time       // 开始时间
-	endTime       time.Time       // 结束时间
-	wg            *sync.WaitGroup // 同步所有goroutine
-	result        []interface{} // 所有的运行结果
-	ch            chan bool
-	lock          sync.RWMutex
+	cap       int             // 协程池work容量
+	taskNum   int             // 接收任务总数量
+	TaskQueue chan *Task      // 接收任务队列
+	JobQueue  chan *Task      // 工作队列
+	startTime time.Time       // 开始时间
+	endTime   time.Time       // 结束时间
+	wg        *sync.WaitGroup // 同步所有goroutine
+	result    []interface{}   // 所有的运行结果
+	ch        chan bool
+	lock      sync.RWMutex
 }
 
 func NewPool(cap int) *Pool {
