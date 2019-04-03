@@ -5,6 +5,22 @@ import (
 	"testing"
 )
 
+func BenchmarkNewPool(b *testing.B) {
+	pool := NewPool(100)
+	pool.SetTaskNum(100000)
+	go func() {
+		for i := 0; i < 100000; i++ {
+			pool.AddTask(NewTask(taskFunc, callbackFunc, i))
+		}
+	}()
+
+	pool.Run()
+
+	b.Logf("%v", pool.GetResult())
+	b.Errorf("program total run time is %f seconds", pool.GetRunTime())
+
+}
+
 func TestNewPool(t *testing.T) {
 
 	//go func() {
