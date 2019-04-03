@@ -7,9 +7,9 @@ import (
 
 func BenchmarkNewPool(b *testing.B) {
 	pool := NewPool(100)
-	pool.SetTaskNum(100000)
+	pool.SetTaskNum(1000000)
 	go func() {
-		for i := 0; i < 100000; i++ {
+		for i := 0; i < 1000000; i++ {
 			pool.AddTask(NewTask(taskFunc, callbackFunc, i))
 		}
 	}()
@@ -33,9 +33,9 @@ func TestNewPool(t *testing.T) {
 	//}()
 
 	pool := NewPool(100)
-	pool.SetTaskNum(100000)
+	pool.SetTaskNum(1000000)
 	go func() {
-		for i := 0; i < 100000; i++ {
+		for i := 0; i < 1000000; i++ {
 			pool.AddTask(NewTask(taskFunc, callbackFunc, i))
 		}
 	}()
