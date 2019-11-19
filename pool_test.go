@@ -1,26 +1,25 @@
 package gopool
 
 import (
-	"fmt"
 	"testing"
 )
 
-func BenchmarkNewPool(b *testing.B) {
+func BenchmarkPoolRun(b *testing.B) {
 	pool := NewPool(100)
-	pool.SetTaskNum(1000000)
+	pool.SetTaskNum(b.N)
 	go func() {
-		for i := 0; i < 1000000; i++ {
+		for i := 0; i < b.N; i++ {
 			pool.AddTask(NewTask(taskFunc, callbackFunc, i))
 		}
 	}()
 
 	pool.Run()
 
-	b.Logf("%v", pool.GetResult())
-	b.Errorf("program total run time is %f seconds", pool.GetRunTime())
-
+	//b.Logf("%v", pool.GetResult())
+	//b.Errorf("program total run time is %f seconds", pool.GetRunTime())
 }
 
+//go:skip
 func TestNewPool(t *testing.T) {
 
 	//go func() {
@@ -48,12 +47,13 @@ func TestNewPool(t *testing.T) {
 }
 
 func taskFunc(args interface{}) (error, interface{}) {
-	fmt.Println("task ", args, "completed")
+	//fmt.Println("task ", args, "completed")
+	_ = 1+1
 	return nil, args
 }
 
 func callbackFunc(result interface{}) (error, interface{}) {
 	// 处理
-	fmt.Println("callback completed [", result, "]")
+	//fmt.Println("callback completed [", result, "]")
 	return nil, result
 }
