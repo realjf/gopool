@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	POOL_MAX_CAP = 10000
+	POOL_MAX_CAP = 1000000
 )
 
 type pool interface {

@@ -5,7 +5,7 @@ import (
 )
 
 func BenchmarkPoolRun(b *testing.B) {
-	pool := NewPool(100)
+	pool := NewPool(10000)
 	pool.SetTaskNum(b.N)
 	go func() {
 		for i := 0; i < b.N; i++ {
@@ -31,7 +31,7 @@ func TestNewPool(t *testing.T) {
 	//	glog.Info("goroutine stats and pprof listen on 6060")
 	//}()
 
-	pool := NewPool(100)
+	pool := NewPool(10000)
 	pool.SetTaskNum(1000000)
 	go func() {
 		for i := 0; i < 1000000; i++ {
@@ -41,14 +41,13 @@ func TestNewPool(t *testing.T) {
 
 	pool.Run()
 
-	t.Logf("%v", pool.GetResult())
+	// t.Logf("%v", pool.GetResult())
 	t.Errorf("program total run time is %f seconds", pool.GetRunTime())
-
 }
 
 func taskFunc(args interface{}) (error, interface{}) {
 	//fmt.Println("task ", args, "completed")
-	_ = 1+1
+	_ = 1 + 1
 	return nil, args
 }
 
