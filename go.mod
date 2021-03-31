@@ -1,5 +1,5 @@
 module gopool
 
-// go: no requirements found in Godeps/Godeps.json
+go 1.14
 
-require github.com/golang/protobuf v1.3.0 // indirect
+// go: no requirements found in Godeps/Godeps.json
