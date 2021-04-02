@@ -35,7 +35,7 @@ func TestNewPool(t *testing.T) {
 	pool.SetTaskNum(1000000)
 	go func() {
 		for i := 0; i < 1000000; i++ {
-			pool.AddTask(NewTask(taskFunc, callbackFunc, i))
+			pool.AddTask(pool.NewTask(taskFunc, callbackFunc, i))
 		}
 	}()
 

@@ -22,7 +22,7 @@ func callbackFunc(result interface{}) (error, interface{}) {
 
 // 添加任务
 for i := 0; i < 1000000; i++ {
-	gopool.AddTask(NewTask(taskFunc, callbackFunc, i))
+	gopool.AddTask(gopool.NewTask(taskFunc, callbackFunc, i))
 }
 
 // 开始运行
