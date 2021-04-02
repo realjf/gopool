@@ -11,7 +11,7 @@ func taskFuncv1(args interface{}) (error, interface{}) {
 }
 
 func callbackFuncv1(result interface{}) (error, interface{}) {
-	// 处理
+	// 处理结果
 	fmt.Println("callback completed [", result, "]")
 	return nil, result
 }
