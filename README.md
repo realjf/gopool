@@ -21,9 +21,12 @@ func callbackFunc(result interface{}) (error, interface{}) {
 }
 
 // 添加任务
-for i := 0; i < 1000000; i++ {
-	pool.AddTask(gopool.NewTask(taskFunc, callbackFunc, i))
-}
+go func() {
+	for i := 0; i < 1000000; i++ {
+		pool.AddTask(gopool.NewTask(taskFunc, callbackFunc, i))
+	}
+}()
+
 
 // 开始运行
 pool.Run()
