@@ -2,7 +2,6 @@ package gopool
 
 import (
 	"errors"
-	"log"
 	"sync"
 	"time"
 )
@@ -62,7 +61,7 @@ func (p *Pool) init() {
 	// 初始化协程池
 	for i := 1; i <= p.cap; i++ {
 		go p.runWorker(i, p.ch)
-		log.Printf("worker [%v]", i)
+		// log.Printf("worker [%v]", i)
 	}
 }
 
@@ -113,11 +112,11 @@ func (p *Pool) GetResult() []interface{} {
 
 func (p *Pool) stop() {
 	// 关闭接收任务队列
-	log.Println("close task channel")
+	// log.Println("close task channel")
 	close(p.TaskQueue)
 
 	// 关闭处理任务队列
-	log.Println("close job channel")
+	// log.Println("close job channel")
 	close(p.JobQueue)
 
 	close(p.ch)
