@@ -36,4 +36,14 @@ pool.GetResult()
 
 // 获取总运行时间
 pool.GetRunTime()
+
+
+// 获取完成任务数
+pool.GetDoneNum()
+
+// 获取成功任务数
+pool.GetSuccessNum()
+
+// 获取失败任务数
+pool.GetFailNum()
 ```

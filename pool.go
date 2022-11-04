@@ -24,27 +24,33 @@ type pool interface {
 
 // goroutine协程池
 type Pool struct {
-	cap       int             // 协程池work容量
-	taskNum   int             // 接收任务总数量
-	TaskQueue chan *Task      // 接收任务队列
-	JobQueue  chan *Task      // 工作队列
-	startTime time.Time       // 开始时间
-	endTime   time.Time       // 结束时间
-	wg        *sync.WaitGroup // 同步所有goroutine
-	result    []interface{}   // 所有的运行结果
-	ch        chan bool
-	lock      sync.RWMutex
+	cap        int             // 协程池work容量
+	taskNum    int             // 接收任务总数量
+	TaskQueue  chan *Task      // 接收任务队列
+	JobQueue   chan *Task      // 工作队列
+	startTime  time.Time       // 开始时间
+	endTime    time.Time       // 结束时间
+	wg         *sync.WaitGroup // 同步所有goroutine
+	result     []interface{}   // 所有的运行结果
+	doneNum    int             // 完成任务总数量
+	successNum int             // 成功任务数量
+	failNum    int             // 失败任务数量
+	ch         chan bool
+	lock       sync.RWMutex
 }
 
 func NewPool(cap int) *Pool {
 	return &Pool{
-		cap:       cap,
-		taskNum:   0,
-		TaskQueue: make(chan *Task, 100),
-		JobQueue:  make(chan *Task, 100),
-		wg:        &sync.WaitGroup{},
-		ch:        make(chan bool),
-		lock:      sync.RWMutex{},
+		cap:        cap,
+		taskNum:    0,
+		TaskQueue:  make(chan *Task, 100),
+		JobQueue:   make(chan *Task, 100),
+		wg:         &sync.WaitGroup{},
+		ch:         make(chan bool),
+		lock:       sync.RWMutex{},
+		doneNum:    0,
+		successNum: 0,
+		failNum:    0,
 	}
 }
 
@@ -94,9 +100,15 @@ stop:
 				continue
 			}
 			worker := NewWorker(workId, task)
-			_ = worker.Run()
+			err := worker.Run()
 			// 返回处理结果
 			p.lock.Lock()
+			p.doneNum++
+			if err != nil {
+				p.failNum++
+			} else {
+				p.successNum++
+			}
 			p.result = append(p.result, worker.Task.Result)
 			p.lock.Unlock()
 		case <-ch:
@@ -131,6 +143,21 @@ func (p *Pool) GetRunTime() float64 {
 	return t.Seconds()
 }
 
+// 获取完成任务数
+func (p *Pool) GetDoneNum() int {
+	return p.doneNum
+}
+
+// 获取成功任务数
+func (p *Pool) GetSuccessNum() int {
+	return p.successNum
+}
+
+// 获取失败任务数
+func (p *Pool) GetFailNum() int {
+	return p.failNum
+}
+
 // 启动协程池
 func (p *Pool) Run() {
 	// 初始化
@@ -143,7 +170,7 @@ stop:
 			p.JobQueue <- task
 		default:
 			p.lock.RLock()
-			if len(p.result) == p.taskNum {
+			if p.doneNum == p.taskNum {
 				p.ch <- true // 通知回收goroutine
 				break stop
 			}
