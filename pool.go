@@ -2,6 +2,7 @@ package gopool
 
 import (
 	"errors"
+	"log"
 	"sync"
 	"time"
 )
@@ -10,20 +11,24 @@ const (
 	POOL_MAX_CAP = 1000000
 )
 
-type pool interface {
+type Pool interface {
 	init()
 	stop()
-	runWorker(int)
+	runWorker(int, chan bool)
 	AddTask(*Task) error
 	Run()
 	DefaultInit()
 	GetRunTime() float64
 	GetResult() []interface{}
 	SetTaskNum(int) // 设置任务总数
+	GetDoneNum() int
+	GetFailNum() int
+	GetSuccessNum() int
+	SetDebug(bool)
 }
 
 // goroutine协程池
-type Pool struct {
+type pool struct {
 	cap        int             // 协程池work容量
 	taskNum    int             // 接收任务总数量
 	TaskQueue  chan *Task      // 接收任务队列
@@ -35,12 +40,13 @@ type Pool struct {
 	doneNum    int             // 完成任务总数量
 	successNum int             // 成功任务数量
 	failNum    int             // 失败任务数量
+	debug      bool            // 是否开启调试
 	ch         chan bool
 	lock       sync.RWMutex
 }
 
-func NewPool(cap int) *Pool {
-	return &Pool{
+func NewPool(cap int) Pool {
+	return &pool{
 		cap:        cap,
 		taskNum:    0,
 		TaskQueue:  make(chan *Task, 100),
@@ -51,11 +57,12 @@ func NewPool(cap int) *Pool {
 		doneNum:    0,
 		successNum: 0,
 		failNum:    0,
+		debug:      false,
 	}
 }
 
 // 手动初始化
-func (p *Pool) init() {
+func (p *pool) init() {
 	p.startTime = time.Now()
 	if p.cap <= 0 {
 		p.DefaultInit()
@@ -72,13 +79,18 @@ func (p *Pool) init() {
 }
 
 // 默认初始化
-func (p *Pool) DefaultInit() {
+func (p *pool) DefaultInit() {
 	p.cap = 100
 	p.taskNum = 0
 }
 
+// 设置调试开关
+func (p *pool) SetDebug(debug bool) {
+	p.debug = debug
+}
+
 // 添加任务到任务队列
-func (p *Pool) AddTask(task *Task) error {
+func (p *pool) AddTask(task *Task) error {
 	if task == nil {
 		return errors.New("add task error: task is nil")
 	}
@@ -86,12 +98,12 @@ func (p *Pool) AddTask(task *Task) error {
 	return nil
 }
 
-func (p *Pool) SetTaskNum(total int) {
+func (p *pool) SetTaskNum(total int) {
 	p.taskNum = total
 }
 
 // 运行一个goroutine协程
-func (p *Pool) runWorker(workId int, ch chan bool) {
+func (p *pool) runWorker(workId int, ch chan bool) {
 stop:
 	for {
 		select {
@@ -118,17 +130,23 @@ stop:
 }
 
 // 返回所有运行结果
-func (p *Pool) GetResult() []interface{} {
+func (p *pool) GetResult() []interface{} {
 	return p.result
 }
 
-func (p *Pool) stop() {
+func (p *pool) stop() {
 	// 关闭接收任务队列
-	// log.Println("close task channel")
+	if p.debug {
+		log.Println("close task channel")
+	}
+
 	close(p.TaskQueue)
 
 	// 关闭处理任务队列
-	// log.Println("close job channel")
+	if p.debug {
+		log.Println("close job channel")
+	}
+
 	close(p.JobQueue)
 
 	close(p.ch)
@@ -138,28 +156,28 @@ func (p *Pool) stop() {
 }
 
 // 获取运行总时间
-func (p *Pool) GetRunTime() float64 {
+func (p *pool) GetRunTime() float64 {
 	t := p.endTime.Sub(p.startTime)
 	return t.Seconds()
 }
 
 // 获取完成任务数
-func (p *Pool) GetDoneNum() int {
+func (p *pool) GetDoneNum() int {
 	return p.doneNum
 }
 
 // 获取成功任务数
-func (p *Pool) GetSuccessNum() int {
+func (p *pool) GetSuccessNum() int {
 	return p.successNum
 }
 
 // 获取失败任务数
-func (p *Pool) GetFailNum() int {
+func (p *pool) GetFailNum() int {
 	return p.failNum
 }
 
 // 启动协程池
-func (p *Pool) Run() {
+func (p *pool) Run() {
 	// 初始化
 	p.init()
 

@@ -6,6 +6,11 @@
 pool := NewPool(10000) // 并发数
 pool.SetTaskNum(1000000) // 设置任务总数
 
+// 设置调试开关
+func (p *Pool) SetDebug(debug bool) {
+ p.debug = debug
+}
+
 // 设置任务函数
 func taskFunc(args interface{}) (error, interface{}) {
 	//fmt.Println("task ", args, "completed")
