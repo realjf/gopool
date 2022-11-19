@@ -1,5 +1,7 @@
 package gopool
 
+import "context"
+
 type Worker struct {
 	WorkID int // 当前work id
 	Task   *Task
@@ -12,6 +14,6 @@ func NewWorker(workID int, task *Task) *Worker {
 	}
 }
 
-func (w *Worker) Run() error {
-	return w.Task.Execute()
+func (w *Worker) Run(ctx context.Context) error {
+	return w.Task.Execute(ctx)
 }

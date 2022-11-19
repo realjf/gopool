@@ -1,48 +1,69 @@
 package gopool
 
 import (
+	"strconv"
 	"testing"
+	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
-func BenchmarkPoolRun(b *testing.B) {
-	pool := NewPool(10000)
-	pool.SetTaskNum(b.N)
-	go func() {
-		for i := 0; i < b.N; i++ {
-			pool.AddTask(NewTask(taskFunc, callbackFunc, i))
-		}
-	}()
+// func BenchmarkPoolRun(b *testing.B) {
+// 	pool := NewPool(10000)
+// 	pool.SetTaskNum(b.N)
+// 	go func() {
+// 		for i := 0; i < b.N; i++ {
+// 			pool.AddTask(NewTask(taskFunc, callbackFunc, i))
+// 		}
+// 	}()
 
-	pool.Run()
-
-	//b.Logf("%v", pool.GetResult())
-	//b.Errorf("program total run time is %f seconds", pool.GetRunTime())
-}
+// 	pool.Run()
+// }
 
 //go:skip
 func TestNewPool(t *testing.T) {
+	cases := map[string]struct {
+		cap     int
+		taskNum int
+	}{
+		"5/10": {
+			cap:     5,
+			taskNum: 10,
+		},
+		// "5/100": {
+		// 	cap:     5,
+		// 	taskNum: 100,
+		// },
+		// "10/1000": {
+		// 	cap:     10,
+		// 	taskNum: 1000,
+		// },
+		// "100/10000": {
+		// 	cap:     100,
+		// 	taskNum: 10000,
+		// },
+		// "100/100000": {
+		// 	cap:     100,
+		// 	taskNum: 100000,
+		// },
+	}
 
-	//go func() {
-	//	http.HandleFunc("/goroutines", func(w http.ResponseWriter, r *http.Request) {
-	//		num := strconv.FormatInt(int64(runtime.NumGoroutine()), 10)
-	//		w.Write([]byte(num))
-	//	})
-	//	http.ListenAndServe("localhost:6060", nil)
-	//	glog.Info("goroutine stats and pprof listen on 6060")
-	//}()
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			pool := NewPool(tc.cap)
+			pool.SetDebug(true)
+			pool.SetTaskNum(tc.taskNum)
+			pool.SetTimeout(2 * time.Second)
+			go func() {
+				for i := 0; i < tc.taskNum; i++ {
+					pool.AddTask(NewTask(taskFunc, callbackFunc, i))
+					log.Println("task:" + strconv.Itoa(i))
+				}
+			}()
 
-	pool := NewPool(10000)
-	pool.SetTaskNum(1000000)
-	go func() {
-		for i := 0; i < 1000000; i++ {
-			pool.AddTask(NewTask(taskFunc, callbackFunc, i))
-		}
-	}()
-
-	pool.Run()
-
-	// t.Logf("%v", pool.GetResult())
-	t.Errorf("program total run time is %f seconds", pool.GetRunTime())
+			pool.Run()
+		})
+	}
 }
 
 func taskFunc(args interface{}) (error, interface{}) {

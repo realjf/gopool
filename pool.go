@@ -1,10 +1,15 @@
 package gopool
 
 import (
+	"context"
 	"errors"
-	"log"
+	"os"
+	"strconv"
 	"sync"
 	"time"
+
+	"github.com/TwiN/go-color"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -25,6 +30,7 @@ type Pool interface {
 	GetFailNum() int
 	GetSuccessNum() int
 	SetDebug(bool)
+	SetTimeout(time.Duration)
 }
 
 // goroutine协程池
@@ -41,6 +47,7 @@ type pool struct {
 	successNum int             // 成功任务数量
 	failNum    int             // 失败任务数量
 	debug      bool            // 是否开启调试
+	timeout    time.Duration   //每个任务执行的超时时间， 默认是1分钟
 	ch         chan bool
 	lock       sync.RWMutex
 }
@@ -58,6 +65,7 @@ func NewPool(cap int) Pool {
 		successNum: 0,
 		failNum:    0,
 		debug:      false,
+		timeout:    time.Minute * 1,
 	}
 }
 
@@ -87,6 +95,8 @@ func (p *pool) DefaultInit() {
 // 设置调试开关
 func (p *pool) SetDebug(debug bool) {
 	p.debug = debug
+	log.SetLevel(log.DebugLevel)
+	log.SetOutput(os.Stdout)
 }
 
 // 添加任务到任务队列
@@ -112,16 +122,30 @@ stop:
 				continue
 			}
 			worker := NewWorker(workId, task)
-			err := worker.Run()
+			ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
+			defer cancel()
+			err := worker.Run(ctx)
+			select {
+			case <-ctx.Done():
+				if p.debug {
+					log.Info(color.InGreen("job done with err:" + ctx.Err().Error()))
+				}
+			case <-time.After(p.timeout):
+				if p.debug {
+					log.Info(color.InYellow("job execute timeout"))
+				}
+			}
 			// 返回处理结果
 			p.lock.Lock()
 			p.doneNum++
 			if err != nil {
 				p.failNum++
+				log.Error(color.InRed("job execute error:" + err.Error()))
 			} else {
 				p.successNum++
 			}
 			p.result = append(p.result, worker.Task.Result)
+			log.Info(color.InBlue("the number of jobs completed :" + strconv.Itoa(p.doneNum)))
 			p.lock.Unlock()
 		case <-ch:
 			break stop
@@ -137,14 +161,14 @@ func (p *pool) GetResult() []interface{} {
 func (p *pool) stop() {
 	// 关闭接收任务队列
 	if p.debug {
-		log.Println("close task channel")
+		log.Info("close task channel")
 	}
 
 	close(p.TaskQueue)
 
 	// 关闭处理任务队列
 	if p.debug {
-		log.Println("close job channel")
+		log.Info("close job channel")
 	}
 
 	close(p.JobQueue)
@@ -174,6 +198,11 @@ func (p *pool) GetSuccessNum() int {
 // 获取失败任务数
 func (p *pool) GetFailNum() int {
 	return p.failNum
+}
+
+// 设置任务执行超时时间
+func (p *pool) SetTimeout(t time.Duration) {
+	p.timeout = t
 }
 
 // 启动协程池

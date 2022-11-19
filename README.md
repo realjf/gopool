@@ -25,6 +25,9 @@ func callbackFunc(result interface{}) (error, interface{}) {
 	return nil, result
 }
 
+// 设置任务执行超时时间，默认1分钟
+p.SetTimeout(time.Minute * 1)
+
 // 添加任务
 go func() {
 	for i := 0; i < 1000000; i++ {
@@ -36,7 +39,7 @@ go func() {
 // 开始运行
 pool.Run()
 
-// 获取运行结果
+// 获取运行结果（可选）
 pool.GetResult()
 
 // 获取总运行时间

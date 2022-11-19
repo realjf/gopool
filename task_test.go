@@ -1,8 +1,14 @@
 package gopool
 
 import (
+	"context"
 	"fmt"
 	"testing"
+	"time"
+
+	"github.com/TwiN/go-color"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 )
 
 func taskFuncv1(args interface{}) (error, interface{}) {
@@ -17,12 +23,46 @@ func callbackFuncv1(result interface{}) (error, interface{}) {
 }
 
 func TestNewTask(t *testing.T) {
-	for i := 1; i <= 100000; i++ {
-		task := NewTask(taskFuncv1, callbackFuncv1, i)
-		err := task.Execute()
-		if err != nil {
-			t.Logf(err.Error())
-		}
+	cases := map[string]struct {
+		args     interface{}
+		callback func(interface{}) (error, interface{})
+		taskFunc func(interface{}) (error, interface{})
+	}{
+		"success": {
+			args: 1,
+			taskFunc: func(args interface{}) (err error, result interface{}) {
+
+				return nil, result
+			},
+			callback: func(args interface{}) (err error, result interface{}) {
+				return nil, result
+			},
+		},
+		"timeout": {
+			args: 2,
+			taskFunc: func(args interface{}) (err error, result interface{}) {
+				time.Sleep(10 * time.Second)
+				return nil, result
+			},
+			callback: func(args interface{}) (err error, result interface{}) {
+				return nil, result
+			},
+		},
 	}
-	t.Fatalf("com")
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			task := NewTask(tc.taskFunc, tc.callback, tc.args)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			defer cancel()
+			err := task.Execute(ctx)
+			select {
+			case <-ctx.Done():
+				log.Println(color.InGreen("job done"))
+			case <-time.After(time.Second * 6): // 比设置的超时时间延后5秒结束
+				log.Println(color.InYellow("job execute timeout"))
+			}
+			assert.NoError(t, err)
+			assert.NoError(t, err)
+		})
+	}
 }

@@ -1,6 +1,9 @@
 package gopool
 
-import "errors"
+import (
+	"context"
+	"errors"
+)
 
 // 任务队列
 type Task struct {
@@ -19,7 +22,7 @@ func NewTask(taskFunc func(interface{}) (error, interface{}), callback func(inte
 }
 
 // 执行任务函数
-func (t *Task) Execute() error {
+func (t *Task) Execute(ctx context.Context) error {
 	if t.taskFunc == nil {
 		return errors.New("task func is nil")
 	}
