@@ -4,8 +4,6 @@ import (
 	"strconv"
 	"testing"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // func BenchmarkPoolRun(b *testing.B) {
@@ -57,7 +55,7 @@ func TestNewPool(t *testing.T) {
 			go func() {
 				for i := 0; i < tc.taskNum; i++ {
 					pool.AddTask(NewTask(taskFunc, callbackFunc, i))
-					log.Println("task:" + strconv.Itoa(i))
+					t.Log("task:" + strconv.Itoa(i))
 				}
 			}()
 

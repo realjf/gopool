@@ -2,11 +2,11 @@ package gopool
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/TwiN/go-color"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,7 +30,7 @@ func TestNewWorker(t *testing.T) {
 			args: 2,
 			taskFunc: func(args interface{}) (err error, result interface{}) {
 				time.Sleep(10 * time.Second)
-				return nil, result
+				return errors.New("timeout"), result
 			},
 			callback: func(args interface{}) (err error, result interface{}) {
 				return nil, result
@@ -39,21 +39,19 @@ func TestNewWorker(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			go func(args interface{}) {
-				task := NewTask(tc.taskFunc, tc.callback, args)
-				worker := NewWorker(1, task)
-				ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-				defer cancel()
-				err := worker.Run(ctx, time.Second*5)
-				select {
-				case <-ctx.Done():
-					log.Println(color.InGreen("job done"))
-				case <-time.After(time.Second * 6): // 比设置的超时时间延后5秒结束
-					log.Println(color.InYellow("job execute timeout"))
-				}
-				assert.NoError(t, err)
-
-			}(tc.args)
+			task := NewTask(tc.taskFunc, tc.callback, tc.args)
+			worker := NewWorker(1, task)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			defer cancel()
+			ctx2 := context.WithValue(ctx, "debug", true)
+			err := worker.Run(ctx2, time.Second*5)
+			select {
+			case <-ctx.Done():
+				t.Log(color.InGreen("job done"))
+			case <-time.After(time.Second * 6): // 比设置的超时时间延后5秒结束
+				t.Log(color.InYellow("job execute timeout"))
+			}
+			assert.NoError(t, err)
 		})
 	}
 }

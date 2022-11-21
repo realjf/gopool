@@ -2,12 +2,12 @@ package gopool
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/TwiN/go-color"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -42,7 +42,7 @@ func TestNewTask(t *testing.T) {
 			args: 2,
 			taskFunc: func(args interface{}) (err error, result interface{}) {
 				time.Sleep(10 * time.Second)
-				return nil, result
+				return errors.New("timeout"), result
 			},
 			callback: func(args interface{}) (err error, result interface{}) {
 				return nil, result
@@ -57,9 +57,9 @@ func TestNewTask(t *testing.T) {
 			err := task.Execute(ctx)
 			select {
 			case <-ctx.Done():
-				log.Println(color.InGreen("job done"))
+				t.Log(color.InGreen("job done"))
 			case <-time.After(time.Second * 6): // 比设置的超时时间延后5秒结束
-				log.Println(color.InYellow("job execute timeout"))
+				t.Log(color.InYellow("job execute timeout"))
 			}
 			assert.NoError(t, err)
 			assert.NoError(t, err)
