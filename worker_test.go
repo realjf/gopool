@@ -44,7 +44,7 @@ func TestNewWorker(t *testing.T) {
 				worker := NewWorker(1, task)
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 				defer cancel()
-				err := worker.Run(ctx)
+				err := worker.Run(ctx, time.Second*5)
 				select {
 				case <-ctx.Done():
 					log.Println(color.InGreen("job done"))

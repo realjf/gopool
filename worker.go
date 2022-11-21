@@ -2,6 +2,8 @@ package gopool
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -20,7 +22,7 @@ func NewWorker(workID int, task *Task) *Worker {
 	}
 }
 
-func (w *Worker) Run(ctx context.Context) (err error) {
+func (w *Worker) Run(ctx context.Context, timeout time.Duration) (err error) {
 	debug := ctx.Value("debug").(bool)
 	for {
 		select {
@@ -29,6 +31,11 @@ func (w *Worker) Run(ctx context.Context) (err error) {
 				log.Infof("worker[%d]: done", w.WorkID)
 			}
 			return err
+		case <-time.After(timeout):
+			if debug {
+				log.Infof("worker[%d]: timeout", w.WorkID)
+			}
+			return fmt.Errorf("worker[%d] timeout", w.WorkID)
 		default:
 			if !w.running {
 				if debug {
