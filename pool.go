@@ -270,16 +270,31 @@ func (p *pool) Run() {
 	// 初始化
 	p.init()
 	for p.GetGoroutineNum() != p.cap {
-		log.Info(color.InRed("goroutines: " + strconv.Itoa(p.GetGoroutineNum())))
+		if p.debug {
+			log.Info(color.InRed("goroutines: " + strconv.Itoa(p.GetGoroutineNum())))
+		}
+
 		runtime.Gosched()
 	}
+	ticker := time.NewTicker(time.Second * 3)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				log.Info(color.InRed("the number of goroutines: " + strconv.Itoa(p.GetGoroutineNum())))
+			case <-p.ch:
+				return
+			}
+		}
+
+	}()
 stop:
 	for {
 		select {
 		case task := <-p.TaskQueue:
 			p.JobQueue <- task
 		default:
-			log.Info(color.InRed("the number of goroutines: " + strconv.Itoa(p.GetGoroutineNum())))
+
 			p.lock.RLock()
 			if p.doneNum == p.taskNum {
 				p.ch <- true // 通知回收goroutine
