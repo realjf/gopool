@@ -28,22 +28,14 @@ func TestNewPool(t *testing.T) {
 			cap:     5,
 			taskNum: 10,
 		},
-		// "5/100": {
-		// 	cap:     5,
-		// 	taskNum: 100,
-		// },
-		// "10/1000": {
-		// 	cap:     10,
-		// 	taskNum: 1000,
-		// },
-		// "100/10000": {
-		// 	cap:     100,
-		// 	taskNum: 10000,
-		// },
-		// "100/100000": {
-		// 	cap:     100,
-		// 	taskNum: 100000,
-		// },
+		"5/100": {
+			cap:     5,
+			taskNum: 100,
+		},
+		"10/1000": {
+			cap:     10,
+			taskNum: 1000,
+		},
 	}
 
 	for name, tc := range cases {

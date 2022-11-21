@@ -175,8 +175,7 @@ stop:
 			}
 			p.workerMap.Store(gId, true)
 			worker := NewWorker(workId, task)
-			ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
-			defer cancel()
+			ctx := context.Background()
 			ctx2 := context.WithValue(ctx, "debug", p.debug)
 			err := worker.Run(ctx2, p.timeout)
 			log.Infof("job run over with: %v", err)
@@ -185,7 +184,7 @@ stop:
 				if p.debug {
 					log.Info(color.InGreen("job done with err:" + ctx.Err().Error()))
 				}
-			case <-time.After(p.timeout):
+			case <-time.After(p.timeout + time.Second*1):
 				if p.debug {
 					log.Info(color.InYellow("job execute timeout"))
 				}
