@@ -175,9 +175,10 @@ stop:
 			}
 			p.workerMap.Store(gId, true)
 			worker := NewWorker(workId, task)
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 			defer cancel()
 			err := worker.Run(ctx)
+			log.Infof("job run over with: %v", err)
 			select {
 			case <-ctx.Done():
 				if p.debug {
@@ -313,9 +314,10 @@ func (p *pool) Run() {
 		for {
 			select {
 			case <-ticker.C:
-				log.Info(color.InRed("the number of goroutines: " + strconv.Itoa(p.GetGoroutineNum())))
-				log.Info(color.InRed("the number of idle goroutines: " + strconv.Itoa(p.GetIdleWorkerNum())))
-				log.Info(color.InRed("the number of busy goroutines: " + strconv.Itoa(p.GetBusyWorkerNum())))
+				log.Info(color.InBlue("total goroutines: " + strconv.Itoa(p.GetGoroutineNum())))
+				log.Info(color.InGreen("idle goroutines: " + strconv.Itoa(p.GetIdleWorkerNum())))
+				log.Info(color.InRed("busy goroutines: " + strconv.Itoa(p.GetBusyWorkerNum())))
+				log.Info(color.InRed("job queue length: " + strconv.Itoa(len(p.JobQueue))))
 			case <-p.ch:
 				return
 			}
