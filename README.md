@@ -1,5 +1,11 @@
 # gopool
 
+
+### cgroup安装
+```sh
+apt-get install cgroup-tools golang-github-containerd-cgroups-dev libcgroup-dev
+```
+
 ### 具体运行方法
 ```golang
 // 设置运行参数

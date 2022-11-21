@@ -8,4 +8,4 @@ test:
 # 只运行单个方法
 # go test -v -test.run BenchmarkPoolRun -test.bench=".*"
 	@echo 'run test...'
-	@go test -v ./...
+	@go test -v ./... -timeout 30m

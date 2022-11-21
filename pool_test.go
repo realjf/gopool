@@ -44,6 +44,7 @@ func TestNewPool(t *testing.T) {
 			pool.SetDebug(true)
 			pool.SetTaskNum(tc.taskNum)
 			pool.SetTimeout(2 * time.Second)
+			pool.SetMemoryLimit(2 ^ 10)
 			go func() {
 				for i := 0; i < tc.taskNum; i++ {
 					pool.AddTask(NewTask(taskFunc, callbackFunc, i))
