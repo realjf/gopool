@@ -177,7 +177,8 @@ stop:
 			worker := NewWorker(workId, task)
 			ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 			defer cancel()
-			err := worker.Run(ctx)
+			ctx2 := context.WithValue(ctx, "debug", p.debug)
+			err := worker.Run(ctx2)
 			log.Infof("job run over with: %v", err)
 			select {
 			case <-ctx.Done():

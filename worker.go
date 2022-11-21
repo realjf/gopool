@@ -21,14 +21,19 @@ func NewWorker(workID int, task *Task) *Worker {
 }
 
 func (w *Worker) Run(ctx context.Context) (err error) {
+	debug := ctx.Value("debug").(bool)
 	for {
 		select {
 		case <-ctx.Done():
-			log.Infof("worker[%d]: done", w.WorkID)
+			if debug {
+				log.Infof("worker[%d]: done", w.WorkID)
+			}
 			return err
 		default:
-			log.Infof("worker:[%d]: working...", w.WorkID)
 			if !w.running {
+				if debug {
+					log.Infof("worker:[%d]: working...", w.WorkID)
+				}
 				w.running = true
 				err = w.Task.Execute(ctx)
 			}
