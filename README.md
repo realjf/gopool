@@ -57,4 +57,10 @@ pool.GetFailNum()
 
 // 获取当前运行中的goroutine数量
 pool.GetGoroutineNum()
+
+// 获取当前忙碌worker数量
+pool.GetBusyWorkerNum()
+
+// 获取当前空闲worker数量
+pool.GetIdleWorkerNum()
 ```
