@@ -86,7 +86,7 @@ func New(options ...Option) (*Cgroup2, error) {
 		}
 	}
 
-	c.cgroup, err = cgroupsv2.NewSystemd("", fmt.Sprintf("/%s", c.Name), -1, c.LinuxResources)
+	c.cgroup, err = cgroupsv2.NewSystemd("/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/session.slice", fmt.Sprintf("/%s", c.Name), -1, c.LinuxResources)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create cgroup")
 	}
@@ -99,7 +99,7 @@ func Existing(name string) (*Cgroup2, error) {
 		Name: name,
 	}
 	var err error
-	c.cgroup, err = cgroupsv2.LoadSystemd("", fmt.Sprintf("/%s", name))
+	c.cgroup, err = cgroupsv2.LoadSystemd("/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/session.slice", fmt.Sprintf("/%s", name))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load cgroup")
 	}
