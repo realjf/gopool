@@ -54,4 +54,7 @@ pool.GetSuccessNum()
 
 // 获取失败任务数
 pool.GetFailNum()
+
+// 获取当前运行中的goroutine数量
+pool.GetGoroutineNum()
 ```
