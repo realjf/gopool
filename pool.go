@@ -12,11 +12,10 @@ import (
 	"time"
 
 	"github.com/TwiN/go-color"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/realjf/gopool/proclimit"
 	"github.com/realjf/gopool/proclimit/cgroups/V1"
 	"github.com/realjf/gopool/proclimit/cgroups/V2"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -124,7 +123,8 @@ func (p *pool) init() {
 	var err error
 	if proclimit.CheckCgroupV2() {
 		p.cgroupV2, err = V2.New(
-			V2.WithName("gopool"),
+			V2.WithSlice(""),
+			V2.WithGroup("gopool"),
 			V2.WithCPULimit(proclimit.Percent(p.cpuUsage)),
 			V2.WithMemoryLimit(p.memLimitMegaBytes),
 		)

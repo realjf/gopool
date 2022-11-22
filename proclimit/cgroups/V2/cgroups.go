@@ -17,9 +17,15 @@ type Option func(cgroup *Cgroup2)
 
 // WithName sets the name of the Cgroup. If not specified, a random UUID will
 // be generated as the name
-func WithName(name string) Option {
+func WithGroup(group string) Option {
 	return func(cgroup *Cgroup2) {
-		cgroup.Name = name
+		cgroup.Group = group
+	}
+}
+
+func WithSlice(slice string) Option {
+	return func(cgroup *Cgroup2) {
+		cgroup.Slice = slice
 	}
 }
 
@@ -64,7 +70,8 @@ func WithMemoryLimit(memory proclimit.Memory) Option {
 // configured by modifying LinuxResources through Options. Modifying
 // LinuxResources after calling New(...) will have no effect.
 type Cgroup2 struct {
-	Name           string
+	Slice          string
+	Group          string
 	LinuxResources *cgroupsv2.Resources
 	cgroup         *cgroupsv2.Manager
 }
@@ -79,14 +86,14 @@ func New(options ...Option) (*Cgroup2, error) {
 		opt(c)
 	}
 	var err error
-	if c.Name == "" {
-		c.Name, err = proclimit.RandomName()
+	if c.Group == "" {
+		c.Group, err = proclimit.RandomName()
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	c.cgroup, err = cgroupsv2.NewSystemd("/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/session.slice", fmt.Sprintf("/%s", c.Name), -1, c.LinuxResources)
+	c.cgroup, err = cgroupsv2.NewSystemd(c.Slice, fmt.Sprintf("/%s", c.Group), -1, c.LinuxResources)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create cgroup")
 	}
@@ -94,12 +101,13 @@ func New(options ...Option) (*Cgroup2, error) {
 }
 
 // New loads an existing Cgroup by name
-func Existing(name string) (*Cgroup2, error) {
+func Existing(slice, group string) (*Cgroup2, error) {
 	c := &Cgroup2{
-		Name: name,
+		Group: group,
+		Slice: slice,
 	}
 	var err error
-	c.cgroup, err = cgroupsv2.LoadSystemd("/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/session.slice", fmt.Sprintf("/%s", name))
+	c.cgroup, err = cgroupsv2.LoadSystemd(c.Slice, fmt.Sprintf("/%s", c.Group))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load cgroup")
 	}
