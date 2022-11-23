@@ -1,10 +1,6 @@
 # gopool
 
-
-### cgroup安装
-```sh
-apt-get install cgroup-tools golang-github-containerd-cgroups-dev libcgroup-dev
-```
+Go coordinated process pool
 
 ### 具体运行方法
 ```golang
