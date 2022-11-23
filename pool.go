@@ -12,9 +12,6 @@ import (
 	"time"
 
 	"github.com/TwiN/go-color"
-	"github.com/realjf/gopool/proclimit"
-	"github.com/realjf/gopool/proclimit/cgroups/V1"
-	"github.com/realjf/gopool/proclimit/cgroups/V2"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -40,8 +37,6 @@ type Pool interface {
 	GetGoroutineNum() int // 获取goroutine数量
 	GetBusyWorkerNum() int
 	GetIdleWorkerNum() int
-	SetMemoryLimit(uint) // 设置内存限制，单位：字节
-	SetCPULimit(uint)
 }
 
 // goroutine协程池
@@ -64,10 +59,6 @@ type pool struct {
 	workerMap         *sync.Map  // key-协程id, value-是否忙碌中
 	idleWorkerNum     int        // 空闲work数量
 	busyWorkerNum     int        // 工作中的work数量
-	cgroupV1          *V1.Cgroup
-	cgroupV2          *V2.Cgroup2
-	memLimitMegaBytes proclimit.Memory
-	cpuUsage          uint
 	ch                chan bool
 	lock              sync.RWMutex
 }
@@ -91,10 +82,6 @@ func NewPool(cap int) Pool {
 		workerMap:         &sync.Map{},
 		idleWorkerNum:     0,
 		busyWorkerNum:     0,
-		cgroupV1:          nil,
-		cgroupV2:          nil,
-		memLimitMegaBytes: 0,
-		cpuUsage:          0,
 	}
 }
 
@@ -112,32 +99,6 @@ func (p *pool) init() {
 	for i := 0; i < p.cap; i++ {
 		go p.runWorker(i+1, p.ch)
 		// log.Printf("worker [%v]", i)
-	}
-
-	if p.cpuUsage == 0 {
-		p.cpuUsage = 50
-	}
-	if p.memLimitMegaBytes == 0 {
-		p.memLimitMegaBytes = 512
-	}
-	var err error
-	if proclimit.CheckCgroupV2() {
-		p.cgroupV2, err = V2.New(
-			V2.WithSlice(""),
-			V2.WithGroup("gopool"),
-			V2.WithCPULimit(proclimit.Percent(p.cpuUsage)),
-			V2.WithMemoryLimit(p.memLimitMegaBytes),
-		)
-	} else {
-		p.cgroupV1, err = V1.New(
-			V1.WithName("gopool"),
-			V1.WithCPULimit(proclimit.Percent(p.cpuUsage)),
-			V1.WithMemoryLimit(p.memLimitMegaBytes),
-		)
-	}
-
-	if err != nil {
-		panic(err)
 	}
 }
 
@@ -253,12 +214,6 @@ func (p *pool) GetResult() []interface{} {
 }
 
 func (p *pool) stop() {
-	if proclimit.CheckCgroupV2() {
-		defer p.cgroupV2.Close()
-	} else {
-		defer p.cgroupV1.Close()
-	}
-
 	// 关闭接收任务队列
 	if p.debug {
 		log.Info("close task channel")
@@ -343,25 +298,10 @@ func (p *pool) GetIdleWorkerNum() int {
 	return num
 }
 
-// 设置内存限制，单位：字节
-func (p *pool) SetMemoryLimit(limit uint) {
-	// return debug.SetMemoryLimit(limit)
-	p.memLimitMegaBytes = proclimit.Memory(limit) * proclimit.Megabyte
-}
-
-func (p *pool) SetCPULimit(percent uint) {
-	p.cpuUsage = percent
-}
-
 // 启动协程池
 func (p *pool) Run() {
 	// 初始化
 	p.init()
-	if proclimit.CheckCgroupV2() {
-		p.cgroupV2.Limit(os.Getpid())
-	} else {
-		p.cgroupV1.Limit(os.Getpid())
-	}
 
 	for p.GetGoroutineNum() != p.cap {
 		if p.debug {
