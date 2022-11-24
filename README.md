@@ -88,7 +88,7 @@ task.SetCallbackFunc(callbackFunc CallbackFunc)
 task.SetArgs(args any)
 task.SetId(id int)
 ```
-#### design your task by implement ITask interface
+#### Design your task by implement ITask interface(自定义任务结构体，只需要实现ITask接口即可)
 ```go
 type ITask interface {
  Execute() error
