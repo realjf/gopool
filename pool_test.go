@@ -28,10 +28,10 @@ func TestNewPool(t *testing.T) {
 			cap:     5,
 			taskNum: 10,
 		},
-		"5/100": {
-			cap:     5,
-			taskNum: 100,
-		},
+		// "5/100": {
+		// 	cap:     5,
+		// 	taskNum: 100,
+		// },
 		// "10/1000": {
 		// 	cap:     10,
 		// 	taskNum: 1000,
@@ -56,14 +56,14 @@ func TestNewPool(t *testing.T) {
 	}
 }
 
-func taskFunc(args interface{}) (error, interface{}) {
+func taskFunc(args interface{}) (interface{}, error) {
 	//fmt.Println("task ", args, "completed")
 	_ = 1 + 1
-	return nil, args
+	return args, nil
 }
 
-func callbackFunc(result interface{}) (error, interface{}) {
+func callbackFunc(result interface{}) (interface{}, error) {
 	// 处理
 	//fmt.Println("callback completed [", result, "]")
-	return nil, result
+	return result, nil
 }

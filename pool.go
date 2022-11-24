@@ -176,10 +176,11 @@ stop:
 			}
 			p.workerMap.Store(gId, true)
 			worker := NewWorker(workId, task)
-			ctx := context.Background()
-			ctx2 := context.WithValue(ctx, "debug", p.debug)
-			err := worker.Run(ctx2, p.timeout)
-			log.Infof("job run over with: %v", err)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			ctx2 := context.WithValue(ctx, Debug, p.debug)
+			ctx2 = context.WithValue(ctx2, Timeout, p.timeout)
+			err := worker.Run(ctx2)
 			select {
 			case <-ctx.Done():
 				if p.debug {

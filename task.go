@@ -4,11 +4,12 @@ import (
 	"errors"
 )
 
-type TaskFunc func(args interface{}) (error, interface{})
-type CallbackFunc func(result interface{}) (error, interface{})
+type TaskFunc func(args interface{}) (interface{}, error)
+type CallbackFunc func(result interface{}) (interface{}, error)
 
 // 任务队列
 type Task struct {
+	TaskId   int
 	taskFunc TaskFunc
 	Callback CallbackFunc // 执行完成回到函数
 	Result   interface{}  // 运行结果
@@ -28,11 +29,11 @@ func (t *Task) Execute() error {
 	if t.taskFunc == nil {
 		return errors.New("task func is nil")
 	}
-	err, result := t.taskFunc(t.Args)
+	result, err := t.taskFunc(t.Args)
 	if err != nil {
 		return err
 	}
-	err, res := t.Callback(result)
+	res, err := t.Callback(result)
 	if err != nil {
 		return err
 	}

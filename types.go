@@ -1,6 +1,18 @@
 package gopool
 
-import "sync"
+import (
+	"errors"
+	"sync"
+)
+
+type CtxFlag string
+
+var Debug CtxFlag = "debug"
+var Timeout CtxFlag = "timeout"
+
+type TimecoutErr error
+
+var TimecoutError TimecoutErr = errors.New("timeout")
 
 type workerMap struct {
 	lock    sync.RWMutex

@@ -1,7 +1,6 @@
 package gopool
 
 import (
-	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -23,27 +22,27 @@ func callbackFuncv1(result interface{}) (error, interface{}) {
 func TestNewTask(t *testing.T) {
 	cases := map[string]struct {
 		args     interface{}
-		callback func(interface{}) (error, interface{})
-		taskFunc func(interface{}) (error, interface{})
+		callback CallbackFunc
+		taskFunc TaskFunc
 	}{
 		"success": {
 			args: 1,
-			taskFunc: func(args interface{}) (err error, result interface{}) {
+			taskFunc: func(args interface{}) (interface{}, error) {
 				_ = 1 + 1
-				return nil, result
+				return nil, nil
 			},
-			callback: func(args interface{}) (err error, result interface{}) {
-				return nil, result
+			callback: func(result interface{}) (interface{}, error) {
+				return nil, nil
 			},
 		},
 		"timeout": {
 			args: 2,
-			taskFunc: func(args interface{}) (err error, result interface{}) {
+			taskFunc: func(args interface{}) (interface{}, error) {
 				time.Sleep(10 * time.Second)
-				return errors.New("timeout"), result
+				return nil, TimecoutError
 			},
-			callback: func(args interface{}) (err error, result interface{}) {
-				return nil, result
+			callback: func(result interface{}) (interface{}, error) {
+				return nil, nil
 			},
 		},
 	}
@@ -51,7 +50,10 @@ func TestNewTask(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			task := NewTask(tc.taskFunc, tc.callback, tc.args)
 			err := task.Execute()
-			assert.NoError(t, err)
+			if err != nil {
+				assert.ErrorIs(t, err, TimecoutError)
+			}
+
 		})
 	}
 }

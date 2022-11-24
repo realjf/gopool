@@ -22,8 +22,9 @@ func NewWorker(workID int, task *Task) *Worker {
 	}
 }
 
-func (w *Worker) Run(ctx context.Context, timeout time.Duration) (err error) {
-	debug := ctx.Value("debug").(bool)
+func (w *Worker) Run(ctx context.Context) (err error) {
+	debug := ctx.Value(Debug).(bool)
+	timeout := ctx.Value(Timeout).(time.Duration)
 	for {
 		select {
 		case <-ctx.Done():
