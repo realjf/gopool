@@ -28,6 +28,8 @@ func callbackFunc(result any) (any, error) {
 	return result, nil
 }
 
+// Alternatively, you can create a custom task structure by implementing the ITask interface, as shown below. (也可以通过实现ITask接口自定义任务结构体)
+
 
 // Add task to queue(添加任务)
 go func() {
