@@ -94,4 +94,22 @@ type ITask interface {
  Execute() error
  GetResult() any
 }
+
+// for example
+type MyTask struct {
+ ITask
+}
+
+func (m *MyTask) Execute() error {
+ fmt.Println("my task running...")
+ return nil
+}
+
+func (m *MyTask) GetResult() any {
+ return 1
+}
+
+mytask := &MyTask{}
+pool.AddTask(mytask)
+...
 ```
