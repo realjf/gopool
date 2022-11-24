@@ -5,25 +5,25 @@ Go coordinated process pool(协程池)
 ### Usage
 
 
-#### Steps needed
+#### Steps needed(必要步骤)
 ```go
 // Set operating parameters(设置运行参数)
-pool := NewPool(10000) // Concurrency number(并发数)
-pool.SetTaskNum(1000000) // Task number(设置任务总数)
+pool := NewPool(10) // Concurrency number(并发数)
+pool.SetTaskNum(1000) // Task number(设置任务总数)
 
 
 // Set Task Function Template(设置任务函数)
-func taskFunc(args interface{}) (interface{}, error) {
-	//fmt.Println("task ", args, "completed")
+func taskFunc(args any) (any, error) {
 	// do something
+
+	// !!! you should return the result so that the callback function can use it(应该返回结果给回调函数使用) !!!
 	return args, nil
 }
 
 // Set Task Callback Function Template(设置任务结果回调函数)
 // The result parameter is passed by the task function output(result参数是任务函数返回的结果)
-func callbackFunc(result interface{}) (interface{}, error) {
+func callbackFunc(result any) (any, error) {
 	// do something
-	//fmt.Println("callback completed [", result, "]")
 	return result, nil
 }
 

@@ -27,7 +27,7 @@ type Pool interface {
 	Run()
 	DefaultInit()
 	GetRunTime() float64
-	GetResult() []interface{}
+	GetResult() []any
 	SetTaskNum(int) // 设置任务总数
 	GetDoneNum() int
 	GetFailNum() int
@@ -37,7 +37,7 @@ type Pool interface {
 	GetGoroutineNum() int // 获取goroutine数量
 	GetBusyWorkerNum() int
 	GetIdleWorkerNum() int
-	checkHealth()
+	healthCheck()
 }
 
 // goroutine协程池
@@ -49,7 +49,7 @@ type pool struct {
 	startTime     time.Time       // 开始时间
 	endTime       time.Time       // 结束时间
 	wg            *sync.WaitGroup // 同步所有goroutine
-	result        []interface{}   // 所有的运行结果
+	result        []any   // 所有的运行结果
 	doneNum       int             // 完成任务总数量
 	successNum    int             // 成功任务数量
 	failNum       int             // 失败任务数量
@@ -60,6 +60,8 @@ type pool struct {
 	workerMap     *workerMap // key-协程id, value-是否忙碌中
 	idleWorkerNum int        // 空闲work数量
 	busyWorkerNum int        // 工作中的work数量
+	nextWorkId    int        // 用于补充worker时的id分配
+	killSignal    chan int64 // 强制杀死worker,传递goroutine的id
 	ch            chan bool
 	lock          sync.RWMutex
 }
@@ -83,6 +85,8 @@ func NewPool(cap int) Pool {
 		workerMap:     newWorkerMap(),
 		idleWorkerNum: 0,
 		busyWorkerNum: 0,
+		nextWorkId:    cap + 1,
+		killSignal:    make(chan int64),
 	}
 }
 
@@ -150,17 +154,14 @@ func getGoroutineId() int64 {
 // 运行一个goroutine协程
 func (p *pool) runWorker(workId int, ch chan bool) {
 	gId := getGoroutineId()
+	p.workerMap.Store(gId, false)
 	defer func() {
 		p.workerMap.Delete(gId)
 	}()
 	go func(gId int64) {
 		for {
 			select {
-			case t := <-p.ticker.C:
-				if p.debug {
-					log.Info("ticker:" + t.Local().String())
-				}
-
+			case <-p.ticker.C:
 				p.heartBeat <- gId
 			case <-ch:
 				return
@@ -176,34 +177,37 @@ stop:
 			}
 			p.workerMap.Store(gId, true)
 			worker := NewWorker(workId, task)
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			ctx2 := context.WithValue(ctx, Debug, p.debug)
-			ctx2 = context.WithValue(ctx2, Timeout, p.timeout)
-			err := worker.Run(ctx2)
-			select {
-			case <-ctx.Done():
-				if p.debug {
-					log.Info(color.InGreen("job done with err:" + ctx.Err().Error()))
-				}
-			case <-time.After(p.timeout + time.Second*1):
-				if p.debug {
-					log.Info(color.InYellow("job execute timeout"))
-				}
-			}
+			ctx := context.Background()
+			ctx = context.WithValue(ctx, Debug, p.debug)
+			ctx = context.WithValue(ctx, Timeout, p.timeout)
+			err := worker.Run(ctx)
 			// 返回处理结果
 			p.lock.Lock()
 			p.doneNum++
 			if err != nil {
 				p.failNum++
-				log.Error(color.InRed("job execute error:" + err.Error()))
+				if errors.Is(err, TimecoutError) {
+					log.Error(TimecoutError.Error())
+				} else if errors.Is(err, context.DeadlineExceeded) {
+					log.Error(context.DeadlineExceeded.Error())
+				} else if os.IsTimeout(err) {
+					log.Error("IsTimeoutError:" + err.Error())
+				} else {
+					log.Error(color.InRed("job execute error:" + err.Error()))
+				}
 			} else {
 				p.successNum++
 			}
-			p.result = append(p.result, worker.Task.Result)
+			p.result = append(p.result, worker.Task.GetResult())
 			log.Info(color.InBlue("the number of jobs completed :" + strconv.Itoa(p.doneNum)))
 			p.lock.Unlock()
 			p.workerMap.Store(gId, false)
+		case kgId := <-p.killSignal:
+			if kgId == gId {
+				log.Warn(color.InYellow("worker[" + strconv.FormatInt(kgId, 10) + "] is killed"))
+				runtime.Goexit()
+				// break stop
+			}
 		case <-ch:
 			break stop
 		}
@@ -211,7 +215,7 @@ stop:
 }
 
 // 返回所有运行结果
-func (p *pool) GetResult() []interface{} {
+func (p *pool) GetResult() []any {
 	return p.result
 }
 
@@ -231,6 +235,10 @@ func (p *pool) stop() {
 	close(p.JobQueue)
 
 	close(p.ch)
+
+	close(p.heartBeat)
+
+	close(p.killSignal)
 
 	// 运行结束时间
 	p.endTime = time.Now()
@@ -274,7 +282,7 @@ func (p *pool) GetIdleWorkerNum() int {
 	return p.workerMap.GetIdleNum()
 }
 
-func (p *pool) checkHealth() {
+func (p *pool) healthCheck() {
 	ticker := time.NewTicker(time.Second * 3)
 
 	for {
@@ -287,6 +295,12 @@ func (p *pool) checkHealth() {
 			log.Info(color.InGreen("idle goroutines: " + strconv.Itoa(p.GetIdleWorkerNum())))
 			log.Info(color.InRed("busy goroutines: " + strconv.Itoa(p.GetBusyWorkerNum())))
 			log.Info(color.InRed("job queue length: " + strconv.Itoa(len(p.JobQueue))))
+			if p.GetGoroutineNum() < p.cap {
+				for i := 0; i < p.cap-p.GetGoroutineNum(); i++ {
+					go p.runWorker(p.nextWorkId, p.ch)
+					p.nextWorkId++
+				}
+			}
 		case <-p.ch:
 			return
 		}
@@ -297,13 +311,14 @@ func (p *pool) checkHealth() {
 func (p *pool) Run() {
 	// 初始化
 	p.init()
-	go p.checkHealth()
+	go p.healthCheck()
 
+	var now = time.Now()
 	for p.GetGoroutineNum() != p.cap {
-		if p.debug {
+		if time.Now().After(now.Add(2*time.Second)) && p.debug {
 			log.Info(color.InRed("goroutines: " + strconv.Itoa(p.GetGoroutineNum())))
+			now = time.Now()
 		}
-
 		runtime.Gosched()
 	}
 

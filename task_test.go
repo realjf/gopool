@@ -1,49 +1,31 @@
 package gopool
 
 import (
-	"fmt"
+	"context"
+	"errors"
+	"os"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func taskFuncv1(args interface{}) (error, interface{}) {
-	fmt.Println("task ", args, "completed")
-	return nil, args
-}
-
-func callbackFuncv1(result interface{}) (error, interface{}) {
-	// 处理结果
-	fmt.Println("callback completed [", result, "]")
-	return nil, result
-}
-
 func TestNewTask(t *testing.T) {
 	cases := map[string]struct {
-		args     interface{}
-		callback CallbackFunc
-		taskFunc TaskFunc
+		args      any
+		callback  CallbackFunc
+		taskFunc  TaskFunc
+		expectval any
 	}{
 		"success": {
 			args: 1,
-			taskFunc: func(args interface{}) (interface{}, error) {
-				_ = 1 + 1
-				return nil, nil
+			taskFunc: func(args any) (any, error) {
+				a := args.(int) + args.(int)
+				return a, nil
 			},
-			callback: func(result interface{}) (interface{}, error) {
-				return nil, nil
+			callback: func(result any) (any, error) {
+				return result, nil
 			},
-		},
-		"timeout": {
-			args: 2,
-			taskFunc: func(args interface{}) (interface{}, error) {
-				time.Sleep(10 * time.Second)
-				return nil, TimecoutError
-			},
-			callback: func(result interface{}) (interface{}, error) {
-				return nil, nil
-			},
+			expectval: 2,
 		},
 	}
 	for name, tc := range cases {
@@ -51,9 +33,18 @@ func TestNewTask(t *testing.T) {
 			task := NewTask(tc.taskFunc, tc.callback, tc.args)
 			err := task.Execute()
 			if err != nil {
-				assert.ErrorIs(t, err, TimecoutError)
+				if errors.Is(err, TimecoutError) {
+					t.Log(TimecoutError.Error())
+				} else if errors.Is(err, context.DeadlineExceeded) {
+					t.Log(context.DeadlineExceeded.Error())
+				} else if os.IsTimeout(err) {
+					t.Log("IsTimeoutError:" + err.Error())
+				} else {
+					assert.NoError(t, err)
+				}
+			} else {
+				assert.Equal(t, tc.expectval, task.GetResult())
 			}
-
 		})
 	}
 }

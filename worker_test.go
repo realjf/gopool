@@ -2,36 +2,39 @@ package gopool
 
 import (
 	"context"
+	"errors"
+	"os"
 	"testing"
 	"time"
 
-	"github.com/TwiN/go-color"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewWorker(t *testing.T) {
 	cases := map[string]struct {
-		args     interface{}
-		callback CallbackFunc
-		taskFunc TaskFunc
+		args      any
+		callback  CallbackFunc
+		taskFunc  TaskFunc
+		expectval any
 	}{
 		"success": {
 			args: 1,
-			taskFunc: func(args interface{}) (interface{}, error) {
-				_ = 1 + 1
-				return nil, nil
+			taskFunc: func(args any) (any, error) {
+				a := args.(int) + args.(int)
+				return a, nil
 			},
-			callback: func(result interface{}) (interface{}, error) {
-				return nil, nil
+			callback: func(result any) (any, error) {
+				return result, nil
 			},
+			expectval: 2,
 		},
 		"timeout": {
 			args: 2,
-			taskFunc: func(args interface{}) (interface{}, error) {
+			taskFunc: func(args any) (any, error) {
 				time.Sleep(10 * time.Second)
 				return nil, TimecoutError
 			},
-			callback: func(result interface{}) (interface{}, error) {
+			callback: func(result any) (any, error) {
 				return nil, nil
 			},
 		},
@@ -40,19 +43,22 @@ func TestNewWorker(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			task := NewTask(tc.taskFunc, tc.callback, tc.args)
 			worker := NewWorker(1, task)
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			ctx2 := context.WithValue(ctx, Debug, true)
-			ctx2 = context.WithValue(ctx2, Timeout, time.Second*5)
-			err := worker.Run(ctx2)
-			select {
-			case <-ctx.Done():
-				t.Log(color.InGreen("job done"))
-			case <-time.After(time.Second * 6): // 比设置的超时时间延后5秒结束
-				t.Log(color.InYellow("job execute timeout"))
-			}
+			ctx := context.Background()
+			ctx = context.WithValue(ctx, Debug, true)
+			ctx = context.WithValue(ctx, Timeout, time.Second*5)
+			err := worker.Run(ctx)
 			if err != nil {
-				assert.ErrorIs(t, err, TimecoutError)
+				if errors.Is(err, TimecoutError) {
+					t.Log(TimecoutError.Error())
+				} else if errors.Is(err, context.DeadlineExceeded) {
+					t.Log(context.DeadlineExceeded.Error())
+				} else if os.IsTimeout(err) {
+					t.Log("IsTimeoutError:" + err.Error())
+				} else {
+					assert.NoError(t, err)
+				}
+			} else {
+				assert.Equal(t, tc.expectval, task.GetResult())
 			}
 		})
 	}

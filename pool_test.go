@@ -43,7 +43,7 @@ func TestNewPool(t *testing.T) {
 			pool := NewPool(tc.cap)
 			pool.SetDebug(true)
 			pool.SetTaskNum(tc.taskNum)
-			pool.SetTimeout(2 * time.Second)
+			pool.SetTimeout(5 * time.Second)
 			go func() {
 				for i := 0; i < tc.taskNum; i++ {
 					pool.AddTask(NewTask(taskFunc, callbackFunc, i))
@@ -52,17 +52,20 @@ func TestNewPool(t *testing.T) {
 			}()
 
 			pool.Run()
+			for _, v := range pool.GetResult() {
+				t.Logf("result: %v", v)
+			}
+
 		})
 	}
 }
 
-func taskFunc(args interface{}) (interface{}, error) {
-	//fmt.Println("task ", args, "completed")
-	_ = 1 + 1
-	return args, nil
+func taskFunc(args any) (any, error) {
+	a := args.(int) + args.(int)
+	return a, nil
 }
 
-func callbackFunc(result interface{}) (interface{}, error) {
+func callbackFunc(result any) (any, error) {
 	// 处理
 	//fmt.Println("callback completed [", result, "]")
 	return result, nil
