@@ -42,7 +42,8 @@ func (w *Worker) Run(ctx context.Context, timeout time.Duration) (err error) {
 					log.Infof("worker:[%d]: working...", w.WorkID)
 				}
 				w.running = true
-				err = w.Task.Execute(ctx)
+				err = w.Task.Execute()
+				return
 			}
 		}
 

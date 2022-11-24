@@ -1,7 +1,6 @@
 package gopool
 
 import (
-	"context"
 	"errors"
 )
 
@@ -25,7 +24,7 @@ func NewTask(taskFunc TaskFunc, callback CallbackFunc, args interface{}) *Task {
 }
 
 // 执行任务函数
-func (t *Task) Execute(ctx context.Context) error {
+func (t *Task) Execute() error {
 	if t.taskFunc == nil {
 		return errors.New("task func is nil")
 	}
