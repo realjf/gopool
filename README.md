@@ -1,36 +1,34 @@
 # gopool
 
-Go coordinated process pool
+Go coordinated process pool(协程池)
 
-### 具体运行方法
-```golang
-// 设置运行参数
-pool := NewPool(10000) // 并发数
-pool.SetTaskNum(1000000) // 设置任务总数
+### Usage
 
-// 设置调试开关
-func (p *Pool) SetDebug(debug bool) {
- p.debug = debug
-}
 
-// 设置任务函数
-func taskFunc(args interface{}) (error, interface{}) {
+#### Steps needed
+```go
+// Set operating parameters(设置运行参数)
+pool := NewPool(10000) // Concurrency number(并发数)
+pool.SetTaskNum(1000000) // Task number(设置任务总数)
+
+
+// Set Task Function Template(设置任务函数)
+func taskFunc(args interface{}) (interface{}, error) {
 	//fmt.Println("task ", args, "completed")
-	_ = 1 + 1
-	return nil, args
+	// do something
+	return args, nil
 }
 
-// 设置任务结果回调函数
-func callbackFunc(result interface{}) (error, interface{}) {
-	// 处理
+// Set Task Callback Function Template(设置任务结果回调函数)
+// The result parameter is passed by the task function output(result参数是任务函数返回的结果)
+func callbackFunc(result interface{}) (interface{}, error) {
+	// do something
 	//fmt.Println("callback completed [", result, "]")
-	return nil, result
+	return result, nil
 }
 
-// 设置任务执行超时时间，默认1分钟
-p.SetTimeout(time.Minute * 1)
 
-// 添加任务
+// Add task to queue(添加任务)
 go func() {
 	for i := 0; i < 1000000; i++ {
 		pool.AddTask(gopool.NewTask(taskFunc, callbackFunc, i))
@@ -38,31 +36,46 @@ go func() {
 }()
 
 
-// 开始运行
+// Start running(开始运行)
 pool.Run()
+// or(或者)
+go pool.Run()
 
-// 获取运行结果（可选）
+```
+
+#### Optional operation(可选操作)
+```go
+// Set debugging flag(设置调试开关)
+func (p *Pool) SetDebug(debug bool) {
+ p.debug = debug
+}
+
+// Set a per-task run timeout; the default is one minute(设置任务执行超时时间，默认1分钟)
+p.SetTimeout(time.Minute * 1)
+
+// Get all result(获取运行结果)
 pool.GetResult()
 
-// 获取总运行时间
+// Get the total run time(获取总运行时间)
 pool.GetRunTime()
 
 
-// 获取完成任务数
+// Get the number of tasks done(获取完成任务数)
 pool.GetDoneNum()
 
-// 获取成功任务数
+// Get the number of tasks that were successful(获取成功任务数)
 pool.GetSuccessNum()
 
-// 获取失败任务数
+// Get the number of tasks that were failure(获取失败任务数)
 pool.GetFailNum()
 
-// 获取当前运行中的goroutine数量
+// Get the current goroutine number(获取当前运行中的goroutine数量)
 pool.GetGoroutineNum()
 
-// 获取当前忙碌worker数量
+// Get the current busy worker number(获取当前忙碌worker数量)
 pool.GetBusyWorkerNum()
 
-// 获取当前空闲worker数量
+// Get the current idle worker number(获取当前空闲worker数量)
 pool.GetIdleWorkerNum()
+
 ```
