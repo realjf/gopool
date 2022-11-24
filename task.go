@@ -4,6 +4,11 @@ import (
 	"errors"
 )
 
+type ITask interface {
+	Execute() error
+	GetResult() any
+}
+
 type TaskFunc func(args any) (any, error)
 type CallbackFunc func(result any) (any, error)
 
@@ -22,6 +27,22 @@ func NewTask(taskFunc TaskFunc, callback CallbackFunc, args any) *Task {
 		callback: callback,
 		args:     args,
 	}
+}
+
+func NewEmptyTask() *Task {
+	return &Task{}
+}
+
+func (t *Task) SetTaskFunc(f TaskFunc) {
+	t.taskFunc = f
+}
+
+func (t *Task) SetCallbackFunc(f CallbackFunc) {
+	t.callback = f
+}
+
+func (t *Task) SetArgs(args any) {
+	t.args = args
 }
 
 func (t *Task) GetResult() any {

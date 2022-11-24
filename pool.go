@@ -23,7 +23,7 @@ type Pool interface {
 	init()
 	stop()
 	runWorker(int, chan bool)
-	AddTask(*Task) error
+	AddTask(ITask) error
 	Run()
 	DefaultInit()
 	GetRunTime() float64
@@ -44,12 +44,12 @@ type Pool interface {
 type pool struct {
 	cap           int             // 协程池work容量
 	taskNum       int             // 接收任务总数量
-	TaskQueue     chan *Task      // 接收任务队列
-	JobQueue      chan *Task      // 工作队列
+	TaskQueue     chan ITask      // 接收任务队列
+	JobQueue      chan ITask      // 工作队列
 	startTime     time.Time       // 开始时间
 	endTime       time.Time       // 结束时间
 	wg            *sync.WaitGroup // 同步所有goroutine
-	result        []any   // 所有的运行结果
+	result        []any           // 所有的运行结果
 	doneNum       int             // 完成任务总数量
 	successNum    int             // 成功任务数量
 	failNum       int             // 失败任务数量
@@ -70,8 +70,8 @@ func NewPool(cap int) Pool {
 	return &pool{
 		cap:           cap,
 		taskNum:       0,
-		TaskQueue:     make(chan *Task, 100),
-		JobQueue:      make(chan *Task, 100),
+		TaskQueue:     make(chan ITask, 100),
+		JobQueue:      make(chan ITask, 100),
 		wg:            &sync.WaitGroup{},
 		ch:            make(chan bool),
 		lock:          sync.RWMutex{},
@@ -121,7 +121,7 @@ func (p *pool) SetDebug(debug bool) {
 }
 
 // 添加任务到任务队列
-func (p *pool) AddTask(task *Task) error {
+func (p *pool) AddTask(task ITask) error {
 	if task == nil {
 		return errors.New("add task error: task is nil")
 	}
@@ -198,7 +198,7 @@ stop:
 			} else {
 				p.successNum++
 			}
-			p.result = append(p.result, worker.Task.GetResult())
+			p.result = append(p.result, worker.GetTask().GetResult())
 			log.Info(color.InBlue("the number of jobs completed :" + strconv.Itoa(p.doneNum)))
 			p.lock.Unlock()
 			p.workerMap.Store(gId, false)

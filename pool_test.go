@@ -1,6 +1,7 @@
 package gopool
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -18,15 +19,34 @@ import (
 // 	pool.Run()
 // }
 
+type MyTask struct {
+	ITask
+}
+
+func (m *MyTask) Execute() error {
+	fmt.Println("my task running...")
+	return nil
+}
+
+func (m *MyTask) GetResult() any {
+	return 1
+}
+
 //go:skip
 func TestNewPool(t *testing.T) {
 	cases := map[string]struct {
-		cap     int
-		taskNum int
+		cap        int
+		taskNum    int
+		customTask ITask
 	}{
 		"5/10": {
 			cap:     5,
 			taskNum: 10,
+		},
+		"custom task": {
+			cap:        5,
+			taskNum:    10,
+			customTask: &MyTask{},
 		},
 		// "5/100": {
 		// 	cap:     5,
@@ -46,7 +66,12 @@ func TestNewPool(t *testing.T) {
 			pool.SetTimeout(5 * time.Second)
 			go func() {
 				for i := 0; i < tc.taskNum; i++ {
-					pool.AddTask(NewTask(taskFunc, callbackFunc, i))
+					if tc.customTask != nil {
+						pool.AddTask(tc.customTask)
+					} else {
+						pool.AddTask(NewTask(taskFunc, callbackFunc, i))
+					}
+
 					t.Log("task:" + strconv.Itoa(i))
 				}
 			}()

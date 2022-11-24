@@ -9,16 +9,20 @@ import (
 
 type Worker struct {
 	WorkID int // 当前work id
-	Task   *Task
+	task   ITask
 	done   chan bool
 }
 
-func NewWorker(workID int, task *Task) *Worker {
+func NewWorker(workID int, task ITask) *Worker {
 	return &Worker{
 		WorkID: workID,
-		Task:   task,
+		task:   task,
 		done:   make(chan bool),
 	}
+}
+
+func (w *Worker) GetTask() ITask {
+	return w.task
 }
 
 func (w *Worker) Run(pctx context.Context) (err error) {
@@ -27,7 +31,7 @@ func (w *Worker) Run(pctx context.Context) (err error) {
 	ctx, cancel := context.WithTimeout(pctx, timeout)
 	defer cancel()
 	go func() {
-		err = w.Task.Execute()
+		err = w.GetTask().Execute()
 		w.done <- true
 	}()
 	select {

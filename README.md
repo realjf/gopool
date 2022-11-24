@@ -6,6 +6,7 @@ Go coordinated process pool(协程池)
 
 
 #### Steps needed(必要步骤)
+
 ```go
 // Set operating parameters(设置运行参数)
 pool := NewPool(10) // Concurrency number(并发数)
@@ -78,4 +79,19 @@ pool.GetBusyWorkerNum()
 // Get the current idle worker number(获取当前空闲worker数量)
 pool.GetIdleWorkerNum()
 
+type TaskFunc func(args any) (any, error)
+type CallbackFunc func(result any) (any, error)
+
+task := NewEmptyTask()
+task.SetTaskFunc(taskFunc TaskFunc)
+task.SetCallbackFunc(callbackFunc CallbackFunc)
+task.SetArgs(args any)
+task.SetId(id int)
+```
+#### design your task by implement ITask interface
+```go
+type ITask interface {
+ Execute() error
+ GetResult() any
+}
 ```
