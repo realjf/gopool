@@ -16,6 +16,7 @@ func TestNewWorker(t *testing.T) {
 		callback  CallbackFunc
 		taskFunc  TaskFunc
 		expectval any
+		timeout   time.Duration
 	}{
 		"success": {
 			args: 1,
@@ -27,11 +28,22 @@ func TestNewWorker(t *testing.T) {
 				return result, nil
 			},
 			expectval: 2,
+			timeout:   5 * time.Second,
 		},
 		"timeout": {
 			args: 2,
 			taskFunc: func(args any) (any, error) {
 				time.Sleep(10 * time.Second)
+				return nil, TimecoutError
+			},
+			callback: func(result any) (any, error) {
+				return nil, nil
+			},
+		},
+		"no_timeout": {
+			args: 3,
+			taskFunc: func(args any) (any, error) {
+				time.Sleep(20 * time.Second)
 				return nil, TimecoutError
 			},
 			callback: func(result any) (any, error) {
@@ -45,7 +57,7 @@ func TestNewWorker(t *testing.T) {
 			worker := NewWorker(1, task)
 			ctx := context.Background()
 			ctx = context.WithValue(ctx, Debug, true)
-			ctx = context.WithValue(ctx, Timeout, time.Second*5)
+			ctx = context.WithValue(ctx, Timeout, tc.timeout)
 			err := worker.Run(ctx)
 			if err != nil {
 				if errors.Is(err, TimecoutError) {

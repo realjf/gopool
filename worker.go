@@ -28,24 +28,42 @@ func (w *Worker) GetTask() ITask {
 func (w *Worker) Run(pctx context.Context) (err error) {
 	debug := pctx.Value(Debug).(bool)
 	timeout := pctx.Value(Timeout).(time.Duration)
-	ctx, cancel := context.WithTimeout(pctx, timeout)
-	defer cancel()
-	go func() {
-		err = w.GetTask().Execute()
-		w.done <- true
-	}()
-	select {
-	case <-ctx.Done():
-		if debug {
-			log.Infof("worker[%d]: done", w.WorkID)
+	if timeout > 0 {
+		ctx, cancel := context.WithTimeout(pctx, timeout)
+		defer cancel()
+		go func() {
+			err = w.GetTask().Execute()
+			w.done <- true
+		}()
+		select {
+		case <-ctx.Done():
+			if debug {
+				log.Infof("worker[%d]: done", w.WorkID)
+			}
+			return ctx.Err()
+		case <-time.After(timeout + time.Second*1):
+			if debug {
+				log.Infof("worker[%d]: timeout", w.WorkID)
+			}
+			return TimecoutError
+		case <-w.done:
+			return
 		}
-		return ctx.Err()
-	case <-time.After(timeout + time.Second*1):
-		if debug {
-			log.Infof("worker[%d]: timeout", w.WorkID)
+	} else {
+		ctx, cancel := context.WithCancel(pctx)
+		defer cancel()
+		go func() {
+			err = w.GetTask().Execute()
+			w.done <- true
+		}()
+		select {
+		case <-ctx.Done():
+			if debug {
+				log.Infof("worker[%d]: done", w.WorkID)
+			}
+			return ctx.Err()
+		case <-w.done:
+			return
 		}
-		return TimecoutError
-	case <-w.done:
-		return
 	}
 }

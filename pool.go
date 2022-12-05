@@ -54,7 +54,7 @@ type pool struct {
 	successNum    int             // 成功任务数量
 	failNum       int             // 失败任务数量
 	debug         bool            // 是否开启调试
-	timeout       time.Duration   //每个任务执行的超时时间， 默认是1分钟
+	timeout       time.Duration   //每个任务执行的超时时间， 默认是没有超时限制
 	ticker        *time.Ticker
 	heartBeat     chan int64 // 心跳通道,用于接收goroutines的心跳通知
 	workerMap     *workerMap // key-协程id, value-是否忙碌中
@@ -79,7 +79,7 @@ func NewPool(cap int) Pool {
 		successNum:    0,
 		failNum:       0,
 		debug:         false,
-		timeout:       time.Minute * 1,
+		timeout:       0,
 		ticker:        time.NewTicker(time.Second),
 		heartBeat:     make(chan int64, 10),
 		workerMap:     newWorkerMap(),
