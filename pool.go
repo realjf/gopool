@@ -189,10 +189,7 @@ stop:
 			}
 			p.workerMap.Store(gId, true)
 			worker := NewWorker(workId, task)
-			ctx := context.Background()
-			ctx = context.WithValue(ctx, Debug, p.debug)
-			ctx = context.WithValue(ctx, Timeout, p.timeout)
-			err := worker.Run(ctx)
+			err := worker.Run(p.debug, p.timeout)
 			// 返回处理结果
 			p.lock.Lock()
 			p.doneNum++

@@ -39,11 +39,12 @@ func TestNewWorker(t *testing.T) {
 			callback: func(result any) (any, error) {
 				return nil, nil
 			},
+			timeout: 5 * time.Second,
 		},
 		"no_timeout": {
 			args: 3,
 			taskFunc: func(args any) (any, error) {
-				time.Sleep(20 * time.Second)
+				time.Sleep(12 * time.Second)
 				return nil, TimecoutError
 			},
 			callback: func(result any) (any, error) {
@@ -51,14 +52,13 @@ func TestNewWorker(t *testing.T) {
 			},
 		},
 	}
+	var workId int = 1
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			task := NewTask(tc.taskFunc, tc.callback, tc.args)
-			worker := NewWorker(1, task)
-			ctx := context.Background()
-			ctx = context.WithValue(ctx, Debug, true)
-			ctx = context.WithValue(ctx, Timeout, tc.timeout)
-			err := worker.Run(ctx)
+			worker := NewWorker(workId, task)
+			workId++
+			err := worker.Run(true, tc.timeout)
 			if err != nil {
 				if errors.Is(err, TimecoutError) {
 					t.Log(TimecoutError.Error())
