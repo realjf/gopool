@@ -38,7 +38,7 @@ func (w *Worker) Run(pctx context.Context) (err error) {
 		select {
 		case <-ctx.Done():
 			if debug {
-				log.Infof("worker[%d]: done", w.WorkID)
+				log.Infof("worker[%d]: done from timeout context", w.WorkID)
 			}
 			return ctx.Err()
 		case <-time.After(timeout + time.Second*1):
@@ -50,10 +50,15 @@ func (w *Worker) Run(pctx context.Context) (err error) {
 			return
 		}
 	} else {
-		err = w.GetTask().Execute()
+		go func() {
+			err = w.GetTask().Execute()
+			w.done <- true
+		}()
+		<-w.done
 		if debug {
-			log.Infof("worker[%d]: done", w.WorkID)
+			log.Infof("worker[%d]: done from no timeout context", w.WorkID)
 		}
-		return err
+		return
+
 	}
 }
