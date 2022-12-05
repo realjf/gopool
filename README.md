@@ -2,7 +2,7 @@
 
 Go coordinated process pool(协程池)
 
-### Usage
+### Usage(latest version)
 
 
 #### Steps needed(必要步骤)
@@ -53,7 +53,7 @@ func (p *Pool) SetDebug(debug bool) {
  p.debug = debug
 }
 
-// Set a per-task run timeout; the default is one minute(设置任务执行超时时间，默认1分钟)
+// Set a per-task run timeout; the default is  no limit(设置任务执行超时时间，默认没限制)
 p.SetTimeout(time.Minute * 1)
 
 // Get all result(获取运行结果)
