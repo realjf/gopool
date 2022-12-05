@@ -50,20 +50,10 @@ func (w *Worker) Run(pctx context.Context) (err error) {
 			return
 		}
 	} else {
-		ctx, cancel := context.WithCancel(pctx)
-		defer cancel()
-		go func() {
-			err = w.GetTask().Execute()
-			w.done <- true
-		}()
-		select {
-		case <-ctx.Done():
-			if debug {
-				log.Infof("worker[%d]: done", w.WorkID)
-			}
-			return ctx.Err()
-		case <-w.done:
-			return
+		err = w.GetTask().Execute()
+		if debug {
+			log.Infof("worker[%d]: done", w.WorkID)
 		}
+		return err
 	}
 }

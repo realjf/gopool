@@ -109,12 +109,16 @@ func (p *pool) init() {
 
 // 默认初始化
 func (p *pool) DefaultInit() {
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	p.cap = 100
 	p.taskNum = 0
 }
 
 // 设置调试开关
 func (p *pool) SetDebug(debug bool) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	p.debug = debug
 	log.SetLevel(log.DebugLevel)
 	log.SetOutput(os.Stdout)
@@ -130,7 +134,15 @@ func (p *pool) AddTask(task ITask) error {
 }
 
 func (p *pool) SetTaskNum(total int) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	p.taskNum = total
+}
+
+func (p *pool) GetTaskNum() int {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	return p.taskNum
 }
 
 // 获取当前goroutine的id
@@ -267,6 +279,8 @@ func (p *pool) GetFailNum() int {
 
 // 设置任务执行超时时间
 func (p *pool) SetTimeout(t time.Duration) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	p.timeout = t
 }
 

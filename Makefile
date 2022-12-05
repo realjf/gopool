@@ -8,7 +8,7 @@ test:
 # 只运行单个方法
 # go test -v -test.run BenchmarkPoolRun -test.bench=".*"
 	@echo 'run test...'
-	@go test -v ./... -timeout 30m
+	@go test -race -v ./... -timeout 30m
 
 push:
 	@git add -A && git commit -m "update" && git push origin master

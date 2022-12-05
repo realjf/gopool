@@ -1,3 +1,5 @@
+//go:build !race
+
 package gopool
 
 import (
@@ -32,7 +34,6 @@ func (m *MyTask) GetResult() any {
 	return 1
 }
 
-//go:skip
 func TestNewPool(t *testing.T) {
 	cases := map[string]struct {
 		cap        int
