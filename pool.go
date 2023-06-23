@@ -22,7 +22,7 @@ const (
 type Pool interface {
 	init()
 	stop()
-	runWorker(int, chan bool)
+	runWorker(int)
 	AddTask(*Task) error
 	Run()
 	DefaultInit()
@@ -41,47 +41,52 @@ type Pool interface {
 
 // goroutine协程池
 type pool struct {
-	cap               int             // 协程池work容量
-	taskNum           int             // 接收任务总数量
-	TaskQueue         chan *Task      // 接收任务队列
-	JobQueue          chan *Task      // 工作队列
-	startTime         time.Time       // 开始时间
-	endTime           time.Time       // 结束时间
-	wg                *sync.WaitGroup // 同步所有goroutine
-	result            []interface{}   // 所有的运行结果
-	doneNum           int             // 完成任务总数量
-	successNum        int             // 成功任务数量
-	failNum           int             // 失败任务数量
-	debug             bool            // 是否开启调试
-	timeout           time.Duration   //每个任务执行的超时时间， 默认是1分钟
-	ticker            *time.Ticker
-	heartBeat         chan int64 // 心跳通道,用于接收goroutines的心跳通知
-	workerMap         *sync.Map  // key-协程id, value-是否忙碌中
-	idleWorkerNum     int        // 空闲work数量
-	busyWorkerNum     int        // 工作中的work数量
-	ch                chan bool
-	lock              sync.RWMutex
+	cap           int             // 协程池work容量
+	taskNum       int             // 接收任务总数量
+	TaskQueue     chan *Task      // 接收任务队列
+	JobQueue      chan *Task      // 工作队列
+	startTime     time.Time       // 开始时间
+	endTime       time.Time       // 结束时间
+	wg            *sync.WaitGroup // 同步所有goroutine
+	result        []interface{}   // 所有的运行结果
+	doneNum       int             // 完成任务总数量
+	successNum    int             // 成功任务数量
+	failNum       int             // 失败任务数量
+	debug         bool            // 是否开启调试
+	timeout       time.Duration   //每个任务执行的超时时间， 默认是1分钟
+	ticker        *time.Ticker
+	heartBeat     chan int64 // 心跳通道,用于接收goroutines的心跳通知
+	workerMap     *sync.Map  // key-协程id, value-是否忙碌中
+	idleWorkerNum int        // 空闲work数量
+	busyWorkerNum int        // 工作中的work数量
+	ch            chan bool
+	lock          sync.RWMutex
+	ctx           context.Context
+	cancel        context.CancelFunc
 }
 
 func NewPool(cap int) Pool {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &pool{
-		cap:               cap,
-		taskNum:           0,
-		TaskQueue:         make(chan *Task, 100),
-		JobQueue:          make(chan *Task, 100),
-		wg:                &sync.WaitGroup{},
-		ch:                make(chan bool),
-		lock:              sync.RWMutex{},
-		doneNum:           0,
-		successNum:        0,
-		failNum:           0,
-		debug:             false,
-		timeout:           time.Minute * 1,
-		ticker:            time.NewTicker(time.Second),
-		heartBeat:         make(chan int64, 10),
-		workerMap:         &sync.Map{},
-		idleWorkerNum:     0,
-		busyWorkerNum:     0,
+		cap:           cap,
+		taskNum:       0,
+		TaskQueue:     make(chan *Task, 100),
+		JobQueue:      make(chan *Task, 100),
+		wg:            &sync.WaitGroup{},
+		ch:            make(chan bool),
+		lock:          sync.RWMutex{},
+		doneNum:       0,
+		successNum:    0,
+		failNum:       0,
+		debug:         false,
+		timeout:       time.Minute * 1,
+		ticker:        time.NewTicker(time.Second),
+		heartBeat:     make(chan int64, 10),
+		workerMap:     &sync.Map{},
+		idleWorkerNum: 0,
+		busyWorkerNum: 0,
+		ctx:           ctx,
+		cancel:        cancel,
 	}
 }
 
@@ -97,7 +102,7 @@ func (p *pool) init() {
 
 	// 初始化协程池
 	for i := 0; i < p.cap; i++ {
-		go p.runWorker(i+1, p.ch)
+		go p.runWorker(i + 1)
 		// log.Printf("worker [%v]", i)
 	}
 }
@@ -147,7 +152,7 @@ func getGoroutineId() int64 {
 }
 
 // 运行一个goroutine协程
-func (p *pool) runWorker(workId int, ch chan bool) {
+func (p *pool) runWorker(workId int) {
 	gId := getGoroutineId()
 	defer func() {
 		p.workerMap.Delete(gId)
@@ -161,7 +166,7 @@ func (p *pool) runWorker(workId int, ch chan bool) {
 				}
 
 				p.heartBeat <- gId
-			case <-ch:
+			case <-p.ctx.Done():
 				return
 			}
 		}
@@ -202,7 +207,12 @@ stop:
 			log.Info(color.InBlue("the number of jobs completed :" + strconv.Itoa(p.doneNum)))
 			p.lock.Unlock()
 			p.workerMap.Store(gId, false)
-		case <-ch:
+			p.lock.RLock()
+			if p.doneNum == p.taskNum {
+				p.ch <- true // 通知回收goroutine
+			}
+			p.lock.RUnlock()
+		case <-p.ctx.Done():
 			break stop
 		}
 	}
@@ -229,6 +239,8 @@ func (p *pool) stop() {
 	close(p.JobQueue)
 
 	close(p.ch)
+
+	p.cancel()
 
 	// 运行结束时间
 	p.endTime = time.Now()
@@ -316,11 +328,16 @@ func (p *pool) Run() {
 		for {
 			select {
 			case <-ticker.C:
+				if p.debug {
+					p.lock.RLock()
+					log.Info(color.InGreen("job done: " + strconv.Itoa(p.doneNum)))
+					p.lock.RUnlock()
+				}
 				log.Info(color.InBlue("total goroutines: " + strconv.Itoa(p.GetGoroutineNum())))
 				log.Info(color.InGreen("idle goroutines: " + strconv.Itoa(p.GetIdleWorkerNum())))
 				log.Info(color.InRed("busy goroutines: " + strconv.Itoa(p.GetBusyWorkerNum())))
 				log.Info(color.InRed("job queue length: " + strconv.Itoa(len(p.JobQueue))))
-			case <-p.ch:
+			case <-p.ctx.Done():
 				return
 			}
 		}
@@ -331,17 +348,13 @@ stop:
 		select {
 		case task := <-p.TaskQueue:
 			p.JobQueue <- task
-		default:
-
-			p.lock.RLock()
-			if p.doneNum == p.taskNum {
-				p.ch <- true // 通知回收goroutine
-				break stop
-			}
-			p.lock.RUnlock()
+		case <-p.ch:
+			p.cancel()
+			break stop
 		}
 	}
 
 	// 结束
 	p.stop()
+
 }
