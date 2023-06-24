@@ -3,55 +3,75 @@ package gopool
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"time"
 
-	"github.com/TwiN/go-color"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewWorker(t *testing.T) {
 	cases := map[string]struct {
-		args     interface{}
-		callback func(interface{}) (error, interface{})
-		taskFunc func(interface{}) (error, interface{})
+		args      any
+		callback  CallbackFunc
+		taskFunc  TaskFunc
+		expectval any
+		timeout   time.Duration
 	}{
 		"success": {
 			args: 1,
-			taskFunc: func(args interface{}) (err error, result interface{}) {
-
-				return nil, result
+			taskFunc: func(args any) (any, error) {
+				a := args.(int) + args.(int)
+				return a, nil
 			},
-			callback: func(args interface{}) (err error, result interface{}) {
-				return nil, result
+			callback: func(result any) (any, error) {
+				return result, nil
 			},
+			expectval: 2,
+			timeout:   5 * time.Second,
 		},
 		"timeout": {
 			args: 2,
-			taskFunc: func(args interface{}) (err error, result interface{}) {
+			taskFunc: func(args any) (any, error) {
 				time.Sleep(10 * time.Second)
-				return errors.New("timeout"), result
+				return nil, TimecoutError
 			},
-			callback: func(args interface{}) (err error, result interface{}) {
-				return nil, result
+			callback: func(result any) (any, error) {
+				return nil, nil
+			},
+			timeout: 5 * time.Second,
+		},
+		"no_timeout": {
+			args: 3,
+			taskFunc: func(args any) (any, error) {
+				time.Sleep(12 * time.Second)
+				return nil, TimecoutError
+			},
+			callback: func(result any) (any, error) {
+				return nil, nil
 			},
 		},
 	}
+	var workId int = 1
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			task := NewTask(tc.taskFunc, tc.callback, tc.args)
-			worker := NewWorker(1, task)
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-			defer cancel()
-			ctx2 := context.WithValue(ctx, "debug", true)
-			err := worker.Run(ctx2, time.Second*5)
-			select {
-			case <-ctx.Done():
-				t.Log(color.InGreen("job done"))
-			case <-time.After(time.Second * 6): // 比设置的超时时间延后5秒结束
-				t.Log(color.InYellow("job execute timeout"))
+			worker := NewWorker(workId, task)
+			workId++
+			err := worker.Run(true, tc.timeout)
+			if err != nil {
+				if errors.Is(err, TimecoutError) {
+					t.Log(TimecoutError.Error())
+				} else if errors.Is(err, context.DeadlineExceeded) {
+					t.Log(context.DeadlineExceeded.Error())
+				} else if os.IsTimeout(err) {
+					t.Log("IsTimeoutError:" + err.Error())
+				} else {
+					assert.NoError(t, err)
+				}
+			} else {
+				assert.Equal(t, tc.expectval, task.GetResult())
 			}
-			assert.NoError(t, err)
 		})
 	}
 }

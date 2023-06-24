@@ -2,49 +2,66 @@ package gopool
 
 import (
 	"context"
-	"fmt"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 )
 
 type Worker struct {
-	WorkID  int // 当前work id
-	Task    *Task
-	running bool
+	WorkID int // 当前work id
+	task   ITask
+	done   chan bool
+	lock   sync.Mutex
 }
 
-func NewWorker(workID int, task *Task) *Worker {
+func NewWorker(workID int, task ITask) *Worker {
 	return &Worker{
-		WorkID:  workID,
-		Task:    task,
-		running: false,
+		WorkID: workID,
+		task:   task,
+		done:   make(chan bool),
+		lock:   sync.Mutex{},
 	}
 }
 
-func (w *Worker) Run(ctx context.Context, timeout time.Duration) (err error) {
-	debug := ctx.Value("debug").(bool)
-	for {
+func (w *Worker) GetTask() ITask {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	return w.task
+}
+
+func (w *Worker) Run(debug bool, timeout time.Duration) (err error) {
+	if timeout > 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		go func() {
+			err = w.GetTask().Execute()
+			w.done <- true
+		}()
 		select {
 		case <-ctx.Done():
 			if debug {
-				log.Infof("worker[%d]: done", w.WorkID)
+				log.Infof("worker[%d]: done from timeout context", w.WorkID)
 			}
-			return err
-		case <-time.After(timeout):
+			return ctx.Err()
+		case <-time.After(timeout + time.Second*1):
 			if debug {
 				log.Infof("worker[%d]: timeout", w.WorkID)
 			}
-			return fmt.Errorf("worker[%d] timeout", w.WorkID)
-		default:
-			if !w.running {
-				if debug {
-					log.Infof("worker:[%d]: working...", w.WorkID)
-				}
-				w.running = true
-				err = w.Task.Execute(ctx)
-			}
+			return TimecoutError
+		case <-w.done:
+			return
 		}
+	} else {
+		go func() {
+			err = w.GetTask().Execute()
+			w.done <- true
+		}()
+		<-w.done
+		if debug {
+			log.Infof("worker[%d]: done from no timeout context", w.WorkID)
+		}
+		return
 
 	}
 }

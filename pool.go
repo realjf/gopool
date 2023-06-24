@@ -23,11 +23,11 @@ type Pool interface {
 	init()
 	stop()
 	runWorker(int)
-	AddTask(*Task) error
+	AddTask(ITask) error
 	Run()
 	DefaultInit()
 	GetRunTime() float64
-	GetResult() []interface{}
+	GetResult() []any
 	SetTaskNum(int) // 设置任务总数
 	GetDoneNum() int
 	GetFailNum() int
@@ -37,28 +37,31 @@ type Pool interface {
 	GetGoroutineNum() int // 获取goroutine数量
 	GetBusyWorkerNum() int
 	GetIdleWorkerNum() int
+	healthCheck()
 }
 
 // goroutine协程池
 type pool struct {
 	cap           int             // 协程池work容量
 	taskNum       int             // 接收任务总数量
-	TaskQueue     chan *Task      // 接收任务队列
-	JobQueue      chan *Task      // 工作队列
+	TaskQueue     chan ITask      // 接收任务队列
+	JobQueue      chan ITask      // 工作队列
 	startTime     time.Time       // 开始时间
 	endTime       time.Time       // 结束时间
 	wg            *sync.WaitGroup // 同步所有goroutine
-	result        []interface{}   // 所有的运行结果
+	result        []any           // 所有的运行结果
 	doneNum       int             // 完成任务总数量
 	successNum    int             // 成功任务数量
 	failNum       int             // 失败任务数量
 	debug         bool            // 是否开启调试
-	timeout       time.Duration   //每个任务执行的超时时间， 默认是1分钟
+	timeout       time.Duration   //每个任务执行的超时时间， 默认是没有超时限制
 	ticker        *time.Ticker
 	heartBeat     chan int64 // 心跳通道,用于接收goroutines的心跳通知
-	workerMap     *sync.Map  // key-协程id, value-是否忙碌中
+	workerMap     *workerMap // key-协程id, value-是否忙碌中
 	idleWorkerNum int        // 空闲work数量
 	busyWorkerNum int        // 工作中的work数量
+	nextWorkId    int        // 用于补充worker时的id分配
+	killSignal    chan int64 // 强制杀死worker,传递goroutine的id
 	ch            chan bool
 	lock          sync.RWMutex
 	ctx           context.Context
@@ -70,8 +73,8 @@ func NewPool(cap int) Pool {
 	return &pool{
 		cap:           cap,
 		taskNum:       0,
-		TaskQueue:     make(chan *Task, 100),
-		JobQueue:      make(chan *Task, 100),
+		TaskQueue:     make(chan ITask, 100),
+		JobQueue:      make(chan ITask, 100),
 		wg:            &sync.WaitGroup{},
 		ch:            make(chan bool),
 		lock:          sync.RWMutex{},
@@ -79,12 +82,14 @@ func NewPool(cap int) Pool {
 		successNum:    0,
 		failNum:       0,
 		debug:         false,
-		timeout:       time.Minute * 1,
+		timeout:       0,
 		ticker:        time.NewTicker(time.Second),
 		heartBeat:     make(chan int64, 10),
-		workerMap:     &sync.Map{},
+		workerMap:     newWorkerMap(),
 		idleWorkerNum: 0,
 		busyWorkerNum: 0,
+		nextWorkId:    cap + 1,
+		killSignal:    make(chan int64),
 		ctx:           ctx,
 		cancel:        cancel,
 	}
@@ -109,19 +114,23 @@ func (p *pool) init() {
 
 // 默认初始化
 func (p *pool) DefaultInit() {
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	p.cap = 100
 	p.taskNum = 0
 }
 
 // 设置调试开关
 func (p *pool) SetDebug(debug bool) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	p.debug = debug
 	log.SetLevel(log.DebugLevel)
 	log.SetOutput(os.Stdout)
 }
 
 // 添加任务到任务队列
-func (p *pool) AddTask(task *Task) error {
+func (p *pool) AddTask(task ITask) error {
 	if task == nil {
 		return errors.New("add task error: task is nil")
 	}
@@ -130,7 +139,15 @@ func (p *pool) AddTask(task *Task) error {
 }
 
 func (p *pool) SetTaskNum(total int) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	p.taskNum = total
+}
+
+func (p *pool) GetTaskNum() int {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	return p.taskNum
 }
 
 // 获取当前goroutine的id
@@ -154,17 +171,14 @@ func getGoroutineId() int64 {
 // 运行一个goroutine协程
 func (p *pool) runWorker(workId int) {
 	gId := getGoroutineId()
+	p.workerMap.Store(gId, false)
 	defer func() {
 		p.workerMap.Delete(gId)
 	}()
 	go func(gId int64) {
 		for {
 			select {
-			case t := <-p.ticker.C:
-				if p.debug {
-					log.Info("ticker:" + t.Local().String())
-				}
-
+			case <-p.ticker.C:
 				p.heartBeat <- gId
 			case <-p.ctx.Done():
 				return
@@ -180,38 +194,39 @@ stop:
 			}
 			p.workerMap.Store(gId, true)
 			worker := NewWorker(workId, task)
-			ctx := context.Background()
-			ctx2 := context.WithValue(ctx, "debug", p.debug)
-			err := worker.Run(ctx2, p.timeout)
-			log.Infof("job run over with: %v", err)
-			select {
-			case <-ctx.Done():
-				if p.debug {
-					log.Info(color.InGreen("job done with err:" + ctx.Err().Error()))
-				}
-			case <-time.After(p.timeout + time.Second*1):
-				if p.debug {
-					log.Info(color.InYellow("job execute timeout"))
-				}
-			}
+			err := worker.Run(p.debug, p.timeout)
 			// 返回处理结果
 			p.lock.Lock()
 			p.doneNum++
 			if err != nil {
 				p.failNum++
-				log.Error(color.InRed("job execute error:" + err.Error()))
+				if errors.Is(err, TimecoutError) {
+					log.Error(TimecoutError.Error())
+				} else if errors.Is(err, context.DeadlineExceeded) {
+					log.Error(context.DeadlineExceeded.Error())
+				} else if os.IsTimeout(err) {
+					log.Error("IsTimeoutError:" + err.Error())
+				} else {
+					log.Error(color.InRed("job execute error:" + err.Error()))
+				}
 			} else {
 				p.successNum++
 			}
-			p.result = append(p.result, worker.Task.Result)
+			p.result = append(p.result, worker.GetTask().GetResult())
 			log.Info(color.InBlue("the number of jobs completed :" + strconv.Itoa(p.doneNum)))
 			p.lock.Unlock()
 			p.workerMap.Store(gId, false)
 			p.lock.RLock()
 			if p.doneNum == p.taskNum {
-				p.ch <- true // 通知回收goroutine
+				p.ch <- true
 			}
 			p.lock.RUnlock()
+		case kgId := <-p.killSignal:
+			if kgId == gId {
+				log.Warn(color.InYellow("worker[" + strconv.FormatInt(kgId, 10) + "] is killed"))
+				runtime.Goexit()
+				// break stop
+			}
 		case <-p.ctx.Done():
 			break stop
 		}
@@ -219,7 +234,7 @@ stop:
 }
 
 // 返回所有运行结果
-func (p *pool) GetResult() []interface{} {
+func (p *pool) GetResult() []any {
 	return p.result
 }
 
@@ -239,6 +254,10 @@ func (p *pool) stop() {
 	close(p.JobQueue)
 
 	close(p.ch)
+
+	close(p.heartBeat)
+
+	close(p.killSignal)
 
 	p.cancel()
 
@@ -269,57 +288,60 @@ func (p *pool) GetFailNum() int {
 
 // 设置任务执行超时时间
 func (p *pool) SetTimeout(t time.Duration) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	p.timeout = t
 }
 
 func (p *pool) GetGoroutineNum() int {
-	go func() {
-		gId := <-p.heartBeat
-		p.workerMap.LoadOrStore(gId, false)
-	}()
-	var num int = 0
-	p.workerMap.Range(func(key, value any) bool {
-		num++
-		return true
-	})
-
-	return num
+	return p.workerMap.GetLength()
 }
 
 func (p *pool) GetBusyWorkerNum() int {
-	var num int = 0
-	p.workerMap.Range(func(key, value any) bool {
-		if value.(bool) {
-			num++
-		}
-		return true
-	})
-
-	return num
+	return p.workerMap.GetBusyNum()
 }
 
 func (p *pool) GetIdleWorkerNum() int {
-	var num int = 0
-	p.workerMap.Range(func(key, value any) bool {
-		if !value.(bool) {
-			num++
-		}
-		return true
-	})
+	return p.workerMap.GetIdleNum()
+}
 
-	return num
+func (p *pool) healthCheck() {
+	ticker := time.NewTicker(time.Second * 3)
+
+	for {
+		select {
+		case gId := <-p.heartBeat:
+			// check health
+			p.workerMap.LoadOrStore(gId, false)
+		case <-ticker.C:
+			log.Info(color.InBlue("total goroutines: " + strconv.Itoa(p.GetGoroutineNum())))
+			log.Info(color.InGreen("idle goroutines: " + strconv.Itoa(p.GetIdleWorkerNum())))
+			log.Info(color.InRed("busy goroutines: " + strconv.Itoa(p.GetBusyWorkerNum())))
+			log.Info(color.InRed("job queue length: " + strconv.Itoa(len(p.JobQueue))))
+			if p.GetGoroutineNum() < p.cap {
+				for i := 0; i < p.cap-p.GetGoroutineNum(); i++ {
+					go p.runWorker(p.nextWorkId)
+					p.nextWorkId++
+				}
+			}
+		case <-p.ctx.Done():
+			return
+		}
+	}
 }
 
 // 启动协程池
 func (p *pool) Run() {
 	// 初始化
 	p.init()
+	go p.healthCheck()
 
+	var now = time.Now()
 	for p.GetGoroutineNum() != p.cap {
-		if p.debug {
+		if time.Now().After(now.Add(2*time.Second)) && p.debug {
 			log.Info(color.InRed("goroutines: " + strconv.Itoa(p.GetGoroutineNum())))
+			now = time.Now()
 		}
-
 		runtime.Gosched()
 	}
 
@@ -349,7 +371,6 @@ stop:
 		case task := <-p.TaskQueue:
 			p.JobQueue <- task
 		case <-p.ch:
-			p.cancel()
 			break stop
 		}
 	}
