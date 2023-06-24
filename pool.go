@@ -345,26 +345,6 @@ func (p *pool) Run() {
 		runtime.Gosched()
 	}
 
-	ticker := time.NewTicker(time.Second * 3)
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				if p.debug {
-					p.lock.RLock()
-					log.Info(color.InGreen("job done: " + strconv.Itoa(p.doneNum)))
-					p.lock.RUnlock()
-				}
-				log.Info(color.InBlue("total goroutines: " + strconv.Itoa(p.GetGoroutineNum())))
-				log.Info(color.InGreen("idle goroutines: " + strconv.Itoa(p.GetIdleWorkerNum())))
-				log.Info(color.InRed("busy goroutines: " + strconv.Itoa(p.GetBusyWorkerNum())))
-				log.Info(color.InRed("job queue length: " + strconv.Itoa(len(p.JobQueue))))
-			case <-p.ctx.Done():
-				return
-			}
-		}
-
-	}()
 stop:
 	for {
 		select {
