@@ -1,12 +1,15 @@
 package gopool
 
 import (
-	"context"
 	"sync"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 )
+
+type IWorker interface {
+	GetTask() ITask
+	Run(debug bool) (err error)
+}
 
 type Worker struct {
 	WorkID int // 当前work id
@@ -15,7 +18,7 @@ type Worker struct {
 	lock   sync.Mutex
 }
 
-func NewWorker(workID int, task ITask) *Worker {
+func NewWorker(workID int, task ITask) IWorker {
 	return &Worker{
 		WorkID: workID,
 		task:   task,
@@ -30,38 +33,10 @@ func (w *Worker) GetTask() ITask {
 	return w.task
 }
 
-func (w *Worker) Run(debug bool, timeout time.Duration) (err error) {
-	if timeout > 0 {
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
-		go func() {
-			err = w.GetTask().Execute()
-			w.done <- true
-		}()
-		select {
-		case <-ctx.Done():
-			if debug {
-				log.Infof("worker[%d]: done from timeout context", w.WorkID)
-			}
-			return ctx.Err()
-		case <-time.After(timeout + time.Second*1):
-			if debug {
-				log.Infof("worker[%d]: timeout", w.WorkID)
-			}
-			return TimecoutError
-		case <-w.done:
-			return
-		}
-	} else {
-		go func() {
-			err = w.GetTask().Execute()
-			w.done <- true
-		}()
-		<-w.done
-		if debug {
-			log.Infof("worker[%d]: done from no timeout context", w.WorkID)
-		}
-		return
-
+func (w *Worker) Run(debug bool) (err error) {
+	err = w.GetTask().Execute()
+	if debug {
+		log.Infof("worker[%d]: done from no timeout context", w.WorkID)
 	}
+	return
 }

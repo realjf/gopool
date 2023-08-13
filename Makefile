@@ -1,3 +1,4 @@
+.PHONY: test
 test:
 # 运行所有测试
 # go test
@@ -10,5 +11,11 @@ test:
 	@echo 'run test...'
 	@go test -race -v ./... -timeout 30m
 
+
 push:
 	@git add -A && git commit -m "update" && git push origin master
+
+
+.PHONY: benchmark
+benchmark:
+	@go test -race -v -bench=. -run=none

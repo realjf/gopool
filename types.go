@@ -10,9 +10,9 @@ type CtxFlag string
 var Debug CtxFlag = "debug"
 var Timeout CtxFlag = "timeout"
 
-type TimecoutErr error
+type TimeoutErr error
 
-var TimecoutError TimecoutErr = errors.New("timeout")
+var TimeoutError TimeoutErr = errors.New("timeout")
 
 type workerMap struct {
 	lock    sync.RWMutex

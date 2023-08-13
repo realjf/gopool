@@ -1,28 +1,116 @@
 //go:build !race
 
-package gopool
+package gopool_test
 
 import (
 	"fmt"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/realjf/gopool"
 )
 
-// func BenchmarkPoolRun(b *testing.B) {
-// 	pool := NewPool(10000)
-// 	pool.SetTaskNum(b.N)
-// 	go func() {
-// 		for i := 0; i < b.N; i++ {
-// 			pool.AddTask(NewTask(taskFunc, callbackFunc, i))
-// 		}
-// 	}()
+func BenchmarkPoolRun(b *testing.B) {
 
-// 	pool.Run()
-// }
+	cases := map[string]struct {
+		taskTimes int
+		poolSize  int
+	}{
+		"task-10": {
+			taskTimes: 10,
+			poolSize:  10,
+		},
+		"task-100": {
+			taskTimes: 100,
+			poolSize:  100,
+		},
+		"task-1000": {
+			taskTimes: 1000,
+			poolSize:  1000,
+		},
+		// "task-1e4": {
+		// 	taskTimes: 1e4,
+		// 	poolSize:  1e4,
+		// },
+		// "task-1e5": {
+		// 	taskTimes: 1e5,
+		// 	poolSize:  1e4,
+		// },
+		// "task-1e6": {
+		// 	taskTimes: 1e6,
+		// 	poolSize:  1e4,
+		// },
+	}
+
+	for name, item := range cases {
+		b.Run(name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				pool := gopool.NewPool(item.poolSize)
+				pool.SetTaskNum(item.taskTimes)
+
+				go func() {
+					for j := 0; j < item.taskTimes; j++ {
+						pool.AddTask(gopool.NewTask(taskFunc, callbackFunc, j))
+					}
+				}()
+				pool.Run()
+			}
+		})
+	}
+
+}
+
+func BenchmarkPoolRunParallel(b *testing.B) {
+
+	cases := map[string]struct {
+		taskTimes int
+		poolSize  int
+	}{
+		"task-10": {
+			taskTimes: 10,
+			poolSize:  10,
+		},
+		"task-100": {
+			taskTimes: 100,
+			poolSize:  100,
+		},
+		"task-1000": {
+			taskTimes: 1000,
+			poolSize:  1000,
+		},
+		// "task-1e4": {
+		// 	taskTimes: 1e4,
+		// 	poolSize:  1e4,
+		// },
+		// "task-1e5": {
+		// 	taskTimes: 1e5,
+		// 	poolSize:  1e4,
+		// },
+		// "task-1e6": {
+		// 	taskTimes: 1e6,
+		// 	poolSize:  1e4,
+		// },
+	}
+
+	for _, item := range cases {
+		b.RunParallel(func(p *testing.PB) {
+			pool := gopool.NewPool(item.poolSize)
+			pool.SetTaskNum(item.taskTimes)
+
+			go func() {
+				for j := 0; j < item.taskTimes; j++ {
+					pool.AddTask(gopool.NewTask(taskFunc, callbackFunc, j))
+				}
+			}()
+			pool.Run()
+		})
+	}
+}
 
 type MyTask struct {
-	ITask
+	gopool.ITask
+	ch <-chan error
 }
 
 func (m *MyTask) Execute() error {
@@ -34,34 +122,40 @@ func (m *MyTask) GetResult() any {
 	return 1
 }
 
+func (m *MyTask) ExecChan() <-chan error {
+	return m.ch
+}
+
 func TestNewPool(t *testing.T) {
 	cases := map[string]struct {
 		cap        int
 		taskNum    int
-		customTask ITask
+		customTask gopool.ITask
 	}{
 		"5/10": {
 			cap:     5,
 			taskNum: 10,
 		},
 		"custom task": {
-			cap:        5,
-			taskNum:    10,
-			customTask: &MyTask{},
+			cap:     5,
+			taskNum: 10,
+			customTask: &MyTask{
+				ch: make(chan error),
+			},
 		},
-		// "5/100": {
-		// 	cap:     5,
-		// 	taskNum: 100,
-		// },
-		// "10/1000": {
-		// 	cap:     10,
-		// 	taskNum: 1000,
-		// },
+		"5/100": {
+			cap:     5,
+			taskNum: 100,
+		},
+		"10/1000": {
+			cap:     10,
+			taskNum: 1000,
+		},
 	}
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			pool := NewPool(tc.cap)
+			pool := gopool.NewPool(tc.cap)
 			pool.SetDebug(true)
 			pool.SetTaskNum(tc.taskNum)
 			pool.SetTimeout(5 * time.Second)
@@ -70,7 +164,7 @@ func TestNewPool(t *testing.T) {
 					if tc.customTask != nil {
 						pool.AddTask(tc.customTask)
 					} else {
-						pool.AddTask(NewTask(taskFunc, callbackFunc, i))
+						pool.AddTask(gopool.NewTask(taskFunc, callbackFunc, i))
 					}
 
 					t.Log("task:" + strconv.Itoa(i))

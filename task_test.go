@@ -1,7 +1,6 @@
 package gopool
 
 import (
-	"context"
 	"errors"
 	"os"
 	"testing"
@@ -31,12 +30,11 @@ func TestNewTask(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			task := NewTask(tc.taskFunc, tc.callback, tc.args)
-			err := task.Execute()
+			go task.Execute()
+			err := <-task.ExecChan()
 			if err != nil {
-				if errors.Is(err, TimecoutError) {
-					t.Log(TimecoutError.Error())
-				} else if errors.Is(err, context.DeadlineExceeded) {
-					t.Log(context.DeadlineExceeded.Error())
+				if errors.Is(err, TimeoutError) {
+					t.Log(TimeoutError.Error())
 				} else if os.IsTimeout(err) {
 					t.Log("IsTimeoutError:" + err.Error())
 				} else {
@@ -45,6 +43,7 @@ func TestNewTask(t *testing.T) {
 			} else {
 				assert.Equal(t, tc.expectval, task.GetResult())
 			}
+			t.Log("done")
 		})
 	}
 }

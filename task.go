@@ -4,9 +4,12 @@ import (
 	"errors"
 )
 
+var _ ITask = (*Task)(nil)
+
 type ITask interface {
 	Execute() error
 	GetResult() any
+	ExecChan() <-chan error
 }
 
 type TaskFunc func(args any) (any, error)
@@ -19,13 +22,15 @@ type Task struct {
 	callback CallbackFunc // 执行完成回到函数
 	result   any          // 运行结果
 	args     any          // 参数
+	ch       chan error
 }
 
-func NewTask(taskFunc TaskFunc, callback CallbackFunc, args any) *Task {
+func NewTask(taskFunc TaskFunc, callback CallbackFunc, args any) ITask {
 	return &Task{
 		taskFunc: taskFunc,
 		callback: callback,
 		args:     args,
+		ch:       make(chan error, 1),
 	}
 }
 
@@ -58,22 +63,32 @@ func (t *Task) GetId() int {
 }
 
 // 执行任务函数
-func (t *Task) Execute() error {
+func (t *Task) Execute() (err error) {
+	defer func(e error) {
+		t.ch <- e
+		close(t.ch)
+	}(err)
 	if t.taskFunc == nil {
-		return errors.New("task func is nil")
+		err = errors.New("task func is nil")
+		return
 	}
 	result, err := t.taskFunc(t.args)
 	if err != nil {
-		return err
+		return
 	}
 	if t.callback != nil {
-		res, err := t.callback(result)
+		var res any
+		res, err = t.callback(result)
 		if err != nil {
-			return err
+			return
 		}
 		t.result = res
-		return nil
+		return
 	}
 	t.result = result
-	return nil
+	return
+}
+
+func (t *Task) ExecChan() <-chan error {
+	return t.ch
 }
