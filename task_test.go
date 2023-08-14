@@ -33,10 +33,10 @@ func TestNewTask(t *testing.T) {
 			go task.Execute()
 			err := <-task.ExecChan()
 			if err != nil {
-				if errors.Is(err, TimeoutError) {
-					t.Log(TimeoutError.Error())
+				if errors.Is(err, ErrTimeout) {
+					t.Log(ErrTimeout.Error())
 				} else if os.IsTimeout(err) {
-					t.Log("IsTimeoutError:" + err.Error())
+					t.Log("IsErrTimeout:" + err.Error())
 				} else {
 					assert.NoError(t, err)
 				}

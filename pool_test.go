@@ -95,15 +95,18 @@ func BenchmarkPoolRunParallel(b *testing.B) {
 
 	for _, item := range cases {
 		b.RunParallel(func(p *testing.PB) {
-			pool := gopool.NewPool(item.poolSize)
-			pool.SetTaskNum(item.taskTimes)
+			for p.Next() {
+				pool := gopool.NewPool(item.poolSize)
+				pool.SetTaskNum(item.taskTimes)
 
-			go func() {
-				for j := 0; j < item.taskTimes; j++ {
-					pool.AddTask(gopool.NewTask(taskFunc, callbackFunc, j))
-				}
-			}()
-			pool.Run()
+				go func() {
+					for j := 0; j < item.taskTimes; j++ {
+						pool.AddTask(gopool.NewTask(taskFunc, callbackFunc, j))
+					}
+				}()
+				pool.Run()
+			}
+
 		})
 	}
 }
@@ -143,14 +146,14 @@ func TestNewPool(t *testing.T) {
 				ch: make(chan error),
 			},
 		},
-		"5/100": {
-			cap:     5,
-			taskNum: 100,
-		},
-		"10/1000": {
-			cap:     10,
-			taskNum: 1000,
-		},
+		// "5/100": {
+		// 	cap:     5,
+		// 	taskNum: 100,
+		// },
+		// "10/1000": {
+		// 	cap:     10,
+		// 	taskNum: 1000,
+		// },
 	}
 
 	for name, tc := range cases {

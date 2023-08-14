@@ -12,7 +12,7 @@ var Timeout CtxFlag = "timeout"
 
 type TimeoutErr error
 
-var TimeoutError TimeoutErr = errors.New("timeout")
+var ErrTimeout TimeoutErr = errors.New("timeout")
 
 type workerMap struct {
 	lock    sync.RWMutex

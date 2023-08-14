@@ -4,7 +4,7 @@
 // # Created Date: 2023/08/13 01:44:01                                         #
 // # Author: realjf                                                            #
 // # -----                                                                     #
-// # Last Modified: 2023/08/13 11:07:38                                        #
+// # Last Modified: 2023/08/14 07:49:40                                        #
 // # Modified By: realjf                                                       #
 // # -----                                                                     #
 // # Copyright (c) 2023                                                        #
@@ -44,7 +44,7 @@ func (w *WorkerWithTimeout) Run(debug bool) (err error) {
 		if debug {
 			log.Infof("worker[%d]: done from timeout context", w.WorkID)
 		}
-		return TimeoutError
+		return ErrTimeout
 	case <-w.GetTask().ExecChan():
 		if debug {
 			log.Infof("worker[%d]: done from exec", w.WorkID)

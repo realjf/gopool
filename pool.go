@@ -196,10 +196,10 @@ stop:
 			p.doneNum++
 			if err != nil {
 				p.failNum++
-				if errors.Is(err, TimeoutError) {
-					log.Error(TimeoutError.Error())
+				if errors.Is(err, ErrTimeout) {
+					log.Error(ErrTimeout.Error())
 				} else if os.IsTimeout(err) {
-					log.Error("IsTimeoutError:" + err.Error())
+					log.Error("IsErrTimeout:" + err.Error())
 				} else {
 					log.Error(color.InRed("job execute error:" + err.Error()))
 				}
@@ -331,7 +331,7 @@ stop:
 
 	// 结束
 	// 运行结束时间
-	for p.GetGoroutineNum() != 0 {
+	for p.GetBusyWorkerNum() > 0 {
 		if time.Now().After(now.Add(2*time.Second)) && p.debug {
 			log.Info(color.InRed("goroutines: " + strconv.Itoa(p.GetGoroutineNum())))
 			now = time.Now()

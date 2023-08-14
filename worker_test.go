@@ -27,24 +27,24 @@ func TestNewWorker(t *testing.T) {
 				return result, nil
 			},
 			expectval: 2,
-			timeout:   5 * time.Second,
+			timeout:   3 * time.Second,
 		},
 		"timeout": {
 			args: 2,
 			taskFunc: func(args any) (any, error) {
-				time.Sleep(10 * time.Second)
-				return nil, TimeoutError
+				time.Sleep(5 * time.Second)
+				return nil, ErrTimeout
 			},
 			callback: func(result any) (any, error) {
 				return nil, nil
 			},
-			timeout: 5 * time.Second,
+			timeout: 3 * time.Second,
 		},
 		"no_timeout": {
 			args: 3,
 			taskFunc: func(args any) (any, error) {
-				time.Sleep(12 * time.Second)
-				return nil, TimeoutError
+				time.Sleep(5 * time.Second)
+				return nil, ErrTimeout
 			},
 			callback: func(result any) (any, error) {
 				return nil, nil
@@ -66,10 +66,10 @@ func TestNewWorker(t *testing.T) {
 				err = worker.Run(true)
 			}
 			if err != nil {
-				if errors.Is(err, TimeoutError) {
-					t.Log(TimeoutError.Error())
+				if errors.Is(err, ErrTimeout) {
+					t.Log(ErrTimeout.Error())
 				} else if os.IsTimeout(err) {
-					t.Log("IsTimeoutError:" + err.Error())
+					t.Log("IsErrTimeout:" + err.Error())
 				} else {
 					assert.NoError(t, err)
 				}
@@ -98,24 +98,24 @@ func BenchmarkWorkRun(b *testing.B) {
 				return result, nil
 			},
 			expectval: 2,
-			timeout:   5 * time.Second,
+			timeout:   3 * time.Second,
 		},
 		"timeout": {
 			args: 2,
 			taskFunc: func(args any) (any, error) {
-				time.Sleep(10 * time.Second)
-				return nil, TimeoutError
+				time.Sleep(5 * time.Second)
+				return nil, ErrTimeout
 			},
 			callback: func(result any) (any, error) {
 				return nil, nil
 			},
-			timeout: 5 * time.Second,
+			timeout: 3 * time.Second,
 		},
 		"no_timeout": {
 			args: 3,
 			taskFunc: func(args any) (any, error) {
-				time.Sleep(12 * time.Second)
-				return nil, TimeoutError
+				time.Sleep(5 * time.Second)
+				return nil, ErrTimeout
 			},
 			callback: func(result any) (any, error) {
 				return nil, nil
@@ -137,10 +137,10 @@ func BenchmarkWorkRun(b *testing.B) {
 				err = worker.Run(true)
 			}
 			if err != nil {
-				if errors.Is(err, TimeoutError) {
-					b.Log(TimeoutError.Error())
+				if errors.Is(err, ErrTimeout) {
+					b.Log(ErrTimeout.Error())
 				} else if os.IsTimeout(err) {
-					b.Log("IsTimeoutError:" + err.Error())
+					b.Log("IsErrTimeout:" + err.Error())
 				} else {
 					assert.NoError(b, err)
 				}
@@ -169,24 +169,24 @@ func TestWorkerRace(t *testing.T) {
 				return result, nil
 			},
 			expectval: 2,
-			timeout:   5 * time.Second,
+			timeout:   3 * time.Second,
 		},
 		"timeout": {
 			args: 2,
 			taskFunc: func(args any) (any, error) {
-				time.Sleep(10 * time.Second)
-				return nil, TimeoutError
+				time.Sleep(5 * time.Second)
+				return nil, ErrTimeout
 			},
 			callback: func(result any) (any, error) {
 				return nil, nil
 			},
-			timeout: 5 * time.Second,
+			timeout: 3 * time.Second,
 		},
 		"no_timeout": {
 			args: 3,
 			taskFunc: func(args any) (any, error) {
-				time.Sleep(12 * time.Second)
-				return nil, TimeoutError
+				time.Sleep(3 * time.Second)
+				return nil, ErrTimeout
 			},
 			callback: func(result any) (any, error) {
 				return nil, nil
@@ -208,10 +208,10 @@ func TestWorkerRace(t *testing.T) {
 				err = worker.Run(true)
 			}
 			if err != nil {
-				if errors.Is(err, TimeoutError) {
-					t.Log(TimeoutError.Error())
+				if errors.Is(err, ErrTimeout) {
+					t.Log(ErrTimeout.Error())
 				} else if os.IsTimeout(err) {
-					t.Log("IsTimeoutError:" + err.Error())
+					t.Log("IsErrTimeout:" + err.Error())
 				} else {
 					assert.NoError(t, err)
 				}
