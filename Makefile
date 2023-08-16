@@ -27,7 +27,7 @@ race:
 	@go test -race -v ./... -run=.*
 
 
-.PHONY: all
+.PHONY: bench race
 all:
 	@go test -race -run ^TestPoolRun$ github.com/realjf/gopool_test -count=1 -v
 

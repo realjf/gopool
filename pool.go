@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	color "github.com/TwiN/go-color"
@@ -17,17 +18,14 @@ import (
 )
 
 const (
-	POOL_MAX_CAP = 1000000
+	POOL_MAX_CAP int = 1000000
 )
 
 type Pool interface {
-	init()
-	runWorker(int)
-	AddTask(ITask) error
+	AddTask(f func()) error
 	Run()
 	DefaultInit()
 	GetRunTime() float64
-	GetResult() []any
 	SetTaskNum(int) // 设置任务总数
 	GetDoneNum() int
 	GetFailNum() int
@@ -37,30 +35,27 @@ type Pool interface {
 	GetGoroutineNum() int // 获取goroutine数量
 	GetBusyWorkerNum() int
 	GetIdleWorkerNum() int
-	healthCheck()
+	Close() error
 }
 
 // goroutine协程池
 type pool struct {
-	cap           int           // 协程池work容量
-	taskNum       int           // 接收任务总数量
-	TaskQueue     chan ITask    // 接收任务队列
-	JobQueue      chan ITask    // 工作队列
+	cap           *atomic.Value // 协程池work容量
+	taskQueue     chan func()   // 接收任务队列
+	jobQueue      chan func()   // 工作队列
 	startTime     time.Time     // 开始时间
 	endTime       time.Time     // 结束时间
-	result        []any         // 所有的运行结果
-	doneNum       int           // 完成任务总数量
-	successNum    int           // 成功任务数量
-	failNum       int           // 失败任务数量
-	debug         bool          // 是否开启调试
+	taskNum       *atomic.Value // 接收任务总数量
+	doneNum       *atomic.Value // 完成任务总数量
+	successNum    *atomic.Value // 成功任务数量
+	failNum       *atomic.Value // 失败任务数量
+	debug         *atomic.Value // 是否开启调试
 	timeout       time.Duration //每个任务执行的超时时间， 默认是没有超时限制
-	heartBeat     chan int64    // 心跳通道,用于接收goroutines的心跳通知
 	workerMap     *workerMap    // key-协程id, value-是否忙碌中
-	idleWorkerNum int           // 空闲work数量
-	busyWorkerNum int           // 工作中的work数量
+	idleWorkerNum *atomic.Value // 空闲work数量
+	busyWorkerNum *atomic.Value // 工作中的work数量
 	nextWorkId    int           // 用于补充worker时的id分配
-	killSignal    chan int64    // 强制杀死worker,传递goroutine的id
-	lock          sync.RWMutex
+	lock          sync.Mutex
 	ctx           context.Context
 	cancel        context.CancelFunc
 }
@@ -68,25 +63,32 @@ type pool struct {
 func NewPool(cap int) Pool {
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &pool{
-		cap:           cap,
-		taskNum:       0,
-		TaskQueue:     make(chan ITask, 100),
-		JobQueue:      make(chan ITask, 100),
-		lock:          sync.RWMutex{},
-		doneNum:       0,
-		successNum:    0,
-		failNum:       0,
-		debug:         false,
+		cap:           &atomic.Value{},
+		taskNum:       &atomic.Value{},
+		doneNum:       &atomic.Value{},
+		successNum:    &atomic.Value{},
+		failNum:       &atomic.Value{},
+		idleWorkerNum: &atomic.Value{},
+		busyWorkerNum: &atomic.Value{},
+		debug:         &atomic.Value{},
 		timeout:       0,
-		heartBeat:     make(chan int64, 10),
+		taskQueue:     make(chan func(), 100),
+		jobQueue:      make(chan func(), 100),
 		workerMap:     newWorkerMap(),
-		idleWorkerNum: 0,
-		busyWorkerNum: 0,
+		lock:          sync.Mutex{},
 		nextWorkId:    cap + 1,
-		killSignal:    make(chan int64),
 		ctx:           ctx,
 		cancel:        cancel,
 	}
+
+	p.cap.Store(cap)
+	p.taskNum.Store(0)
+	p.doneNum.Store(0)
+	p.successNum.Store(0)
+	p.failNum.Store(0)
+	p.idleWorkerNum.Store(0)
+	p.busyWorkerNum.Store(0)
+	p.debug.Store(false)
 
 	return p
 }
@@ -94,56 +96,47 @@ func NewPool(cap int) Pool {
 // 手动初始化
 func (p *pool) init() {
 	p.startTime = time.Now()
-	if p.cap <= 0 {
+	if p.cap.Load().(int) <= 0 {
 		p.DefaultInit()
 	}
-	if p.cap >= POOL_MAX_CAP {
-		p.cap = POOL_MAX_CAP
+	if p.cap.Load().(int) >= POOL_MAX_CAP {
+		p.cap.Store(POOL_MAX_CAP)
 	}
 
 	// 初始化协程池
-	for i := 0; i < p.cap; i++ {
+	for i := int(0); i < p.cap.Load().(int); i++ {
 		go p.runWorker(i + 1)
-		// log.Printf("worker [%v]", i)
 	}
 }
 
 // 默认初始化
 func (p *pool) DefaultInit() {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-	p.cap = 100
-	p.taskNum = 0
+	p.cap.Store(100)
+	p.taskNum.Store(0)
 }
 
 // 设置调试开关
 func (p *pool) SetDebug(debug bool) {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-	p.debug = debug
+	p.debug.Store(debug)
 	log.SetLevel(log.DebugLevel)
 	log.SetOutput(os.Stdout)
 }
 
 // 添加任务到任务队列
-func (p *pool) AddTask(task ITask) error {
-	if task == nil {
+func (p *pool) AddTask(f func()) error {
+	if f == nil {
 		return errors.New("add task error: task is nil")
 	}
-	p.TaskQueue <- task
+	p.taskQueue <- f
 	return nil
 }
 
 func (p *pool) SetTaskNum(total int) {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-	p.taskNum = total
+	p.taskNum.Store(total)
 }
 
 func (p *pool) GetTaskNum() int {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-	return p.taskNum
+	return p.taskNum.Load().(int)
 }
 
 // 获取当前goroutine的id
@@ -172,64 +165,40 @@ func (p *pool) runWorker(workId int) {
 	workerCtx, cancel := context.WithCancel(p.ctx)
 	defer cancel()
 
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
 stop:
 	for {
 		select {
-		case <-ticker.C:
-			p.heartBeat <- gId
-		case task := <-p.JobQueue:
+		case task := <-p.jobQueue:
 			if task == nil {
 				continue
 			}
 			p.workerMap.Store(gId, true)
-			var worker IWorker
+			var err error
 			if p.timeout > 0 {
-				worker = NewWorkerWithTimeout(workId, task, p.timeout)
+				NewWorkerWithTimeout(p.timeout).Run(task)
 			} else {
-				worker = NewWorker(workId, task)
+				NewWorker().Run(task)
 			}
-			err := worker.Run(p.debug)
 			// 返回处理结果
 			p.lock.Lock()
-			p.doneNum++
+			oldDone := p.doneNum.Load().(int)
+			p.doneNum.CompareAndSwap(oldDone, oldDone+1)
 			if err != nil {
-				p.failNum++
-				if errors.Is(err, ErrTimeout) {
-					log.Error(ErrTimeout.Error())
-				} else if os.IsTimeout(err) {
-					log.Error("IsErrTimeout:" + err.Error())
-				} else {
-					log.Error(color.InRed("job execute error:" + err.Error()))
-				}
+				oldFail := p.failNum.Load().(int)
+				p.failNum.CompareAndSwap(oldFail, oldFail+1)
+				log.Error(color.InRed("job execute error:" + err.Error()))
 			} else {
-				p.successNum++
+				oldSucc := p.successNum.Load().(int)
+				p.successNum.CompareAndSwap(oldSucc, oldSucc+1)
 			}
-			p.result = append(p.result, worker.GetTask().GetResult())
-			log.Info(color.InBlue("the number of jobs completed :" + strconv.Itoa(p.doneNum)))
+			log.Info(color.InBlue("the number of jobs completed :" + strconv.FormatInt(int64(p.doneNum.Load().(int)), 10)))
+			log.Printf("job completed: %d\n", p.doneNum.Load().(int))
 			p.lock.Unlock()
 			p.workerMap.Store(gId, false)
-			p.lock.RLock()
-			if p.doneNum == p.taskNum {
-				p.cancel()
-			}
-			p.lock.RUnlock()
-		case kgId := <-p.killSignal:
-			if kgId == gId {
-				log.Warn(color.InYellow("worker[" + strconv.FormatInt(kgId, 10) + "] is killed"))
-				runtime.Goexit()
-				// break stop
-			}
 		case <-workerCtx.Done():
 			break stop
 		}
 	}
-}
-
-// 返回所有运行结果
-func (p *pool) GetResult() []any {
-	return p.result
 }
 
 // 获取运行总时间
@@ -240,17 +209,17 @@ func (p *pool) GetRunTime() float64 {
 
 // 获取完成任务数
 func (p *pool) GetDoneNum() int {
-	return p.doneNum
+	return p.doneNum.Load().(int)
 }
 
 // 获取成功任务数
 func (p *pool) GetSuccessNum() int {
-	return p.successNum
+	return p.successNum.Load().(int)
 }
 
 // 获取失败任务数
 func (p *pool) GetFailNum() int {
-	return p.failNum
+	return p.failNum.Load().(int)
 }
 
 // 设置任务执行超时时间
@@ -279,17 +248,13 @@ func (p *pool) healthCheck() {
 	defer cancel()
 	for {
 		select {
-		case gId := <-p.heartBeat:
-			// check health
-			p.workerMap.LoadOrStore(gId, false)
-			runtime.GC()
 		case <-ticker.C:
-			log.Info(color.InBlue("total goroutines: " + strconv.Itoa(p.GetGoroutineNum())))
-			log.Info(color.InGreen("idle goroutines: " + strconv.Itoa(p.GetIdleWorkerNum())))
-			log.Info(color.InRed("busy goroutines: " + strconv.Itoa(p.GetBusyWorkerNum())))
-			log.Info(color.InRed("job queue length: " + strconv.Itoa(len(p.JobQueue))))
-			if p.GetGoroutineNum() < p.cap {
-				for i := 0; i < p.cap-p.GetGoroutineNum(); i++ {
+			log.Info(color.InBlue("total goroutines: " + strconv.FormatInt(int64(p.GetGoroutineNum()), 10)))
+			log.Info(color.InGreen("idle goroutines: " + strconv.FormatInt(int64(p.GetIdleWorkerNum()), 10)))
+			log.Info(color.InRed("busy goroutines: " + strconv.FormatInt(int64(p.GetBusyWorkerNum()), 10)))
+			log.Info(color.InRed("job done num: " + strconv.FormatInt(int64(p.GetDoneNum()), 10)))
+			if p.GetGoroutineNum() < p.cap.Load().(int) {
+				for i := int(0); i < p.cap.Load().(int)-p.GetGoroutineNum(); i++ {
 					go p.runWorker(p.nextWorkId)
 					p.nextWorkId++
 				}
@@ -306,40 +271,84 @@ func (p *pool) Run() {
 	p.init()
 	go p.healthCheck()
 
-	var now = time.Now()
-	for p.GetGoroutineNum() != p.cap {
-		if time.Now().After(now.Add(2*time.Second)) && p.debug {
-			log.Info(color.InRed("goroutines: " + strconv.Itoa(p.GetGoroutineNum())))
+	now := time.Now()
+	for p.GetGoroutineNum() != p.cap.Load().(int) {
+		if time.Now().After(now.Add(2*time.Second)) && p.debug.Load().(bool) {
+			log.Info(color.InRed("goroutines: " + strconv.FormatInt(int64(p.GetGoroutineNum()), 10)))
 			now = time.Now()
 		}
 		runtime.Gosched()
 	}
 
+	go p.run()
+}
+
+func (p *pool) run() {
 stop:
 	for {
 		select {
-		case task := <-p.TaskQueue:
-			p.JobQueue <- task
+		case task := <-p.taskQueue:
+			p.jobQueue <- task
 		case <-p.ctx.Done():
 			break stop
 		}
 	}
+}
 
-	close(p.TaskQueue)
-	close(p.JobQueue)
-	close(p.killSignal)
-
-	// 结束
+func (p *pool) Close() error {
 	// 运行结束时间
-	for p.GetBusyWorkerNum() > 0 {
-		if time.Now().After(now.Add(2*time.Second)) && p.debug {
-			log.Info(color.InRed("goroutines: " + strconv.Itoa(p.GetGoroutineNum())))
-			now = time.Now()
-		}
-		debug.FreeOSMemory()
-		runtime.Gosched()
+	if p.debug.Load().(bool) {
+		log.Println("waiting for stop...")
 	}
 
-	close(p.heartBeat)
-	p.endTime = time.Now()
+	if p.taskNum.Load().(int) == 0 {
+		log.Println("waiting for worker1")
+	exit1:
+		for {
+			select {
+			case <-time.After(time.Second):
+				log.Println("waiting for worker")
+				if p.GetBusyWorkerNum() > 0 {
+					if p.debug.Load().(bool) {
+						log.Info(color.InRed(strconv.FormatInt(int64(p.GetBusyWorkerNum()), 10) + " worker is runing"))
+					}
+				} else {
+					break exit1
+				}
+			}
+		}
+		p.cancel()
+	} else {
+	exit2:
+		for {
+			select {
+			case <-time.After(time.Second):
+				log.Println("waiting for task...")
+				p.lock.Lock()
+				log.Printf("total task %d\n", p.taskNum.Load().(int))
+				if p.doneNum.Load().(int) == p.taskNum.Load().(int) {
+					p.cancel()
+					p.lock.Unlock()
+					break exit2
+				}
+				p.lock.Unlock()
+			}
+		}
+	}
+	debug.FreeOSMemory()
+
+	stopTime, ok := p.ctx.Deadline()
+	if !ok {
+		p.endTime = time.Now()
+	} else {
+		p.endTime = stopTime
+	}
+	p.lock.Lock()
+	close(p.taskQueue)
+	close(p.jobQueue)
+	p.lock.Unlock()
+	if p.debug.Load().(bool) {
+		log.Println("done")
+	}
+	return nil
 }

@@ -1,27 +1,17 @@
 package gopool
 
 import (
-	"errors"
 	"sync"
 )
 
-type CtxFlag string
-
-var Debug CtxFlag = "debug"
-var Timeout CtxFlag = "timeout"
-
-type TimeoutErr error
-
-var ErrTimeout TimeoutErr = errors.New("timeout")
-
 type workerMap struct {
-	lock    sync.RWMutex
+	lock    sync.Mutex
 	workers map[int64]bool
 }
 
 func newWorkerMap() *workerMap {
 	return &workerMap{
-		lock:    sync.RWMutex{},
+		lock:    sync.Mutex{},
 		workers: make(map[int64]bool),
 	}
 }
@@ -50,8 +40,8 @@ func (w *workerMap) LoadOrStore(gId int64, val bool) bool {
 }
 
 func (w *workerMap) GetBusyNum() int {
-	w.lock.RLock()
-	defer w.lock.RUnlock()
+	w.lock.Lock()
+	defer w.lock.Unlock()
 	var num int = 0
 	for _, v := range w.workers {
 		if v {
@@ -62,8 +52,8 @@ func (w *workerMap) GetBusyNum() int {
 }
 
 func (w *workerMap) GetIdleNum() int {
-	w.lock.RLock()
-	defer w.lock.RUnlock()
+	w.lock.Lock()
+	defer w.lock.Unlock()
 	var num int = 0
 	for _, v := range w.workers {
 		if !v {
@@ -74,7 +64,7 @@ func (w *workerMap) GetIdleNum() int {
 }
 
 func (w *workerMap) GetLength() int {
-	w.lock.RLock()
-	defer w.lock.RUnlock()
-	return len(w.workers)
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	return int(len(w.workers))
 }

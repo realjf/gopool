@@ -4,7 +4,7 @@
 // # Created Date: 2023/08/13 01:44:01                                         #
 // # Author: realjf                                                            #
 // # -----                                                                     #
-// # Last Modified: 2023/08/14 07:49:40                                        #
+// # Last Modified: 2023/08/16 21:43:14                                        #
 // # Modified By: realjf                                                       #
 // # -----                                                                     #
 // # Copyright (c) 2023                                                        #
@@ -14,41 +14,30 @@ package gopool
 import (
 	"context"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 )
 
-type WorkerWithTimeout struct {
-	WorkID  int // 当前work id
-	task    ITask
+type workerWithTimeout struct {
 	timeout time.Duration
+	ch      chan bool
 }
 
-func NewWorkerWithTimeout(workID int, task ITask, timeout time.Duration) IWorker {
-	return &WorkerWithTimeout{
-		WorkID:  workID,
-		task:    task,
+func NewWorkerWithTimeout(timeout time.Duration) IWorker {
+	return &workerWithTimeout{
 		timeout: timeout,
+		ch:      make(chan bool),
 	}
 }
 
-func (w *WorkerWithTimeout) GetTask() ITask {
-	return w.task
-}
-
-func (w *WorkerWithTimeout) Run(debug bool) (err error) {
+func (w *workerWithTimeout) Run(f func()) {
 	ctx, _ := context.WithTimeout(context.Background(), w.timeout)
-	go w.GetTask().Execute()
+	go func() {
+		f()
+		w.ch <- true
+	}()
 	select {
 	case <-ctx.Done():
-		if debug {
-			log.Infof("worker[%d]: done from timeout context", w.WorkID)
-		}
-		return ErrTimeout
-	case <-w.GetTask().ExecChan():
-		if debug {
-			log.Infof("worker[%d]: done from exec", w.WorkID)
-		}
+		return
+	case <-w.ch:
 		return
 	}
 }
