@@ -129,7 +129,7 @@ func (m *MyTask) ExecChan() <-chan error {
 	return m.ch
 }
 
-func TestNewPool(t *testing.T) {
+func TestPoolRun(t *testing.T) {
 	cases := map[string]struct {
 		cap        int
 		taskNum    int

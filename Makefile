@@ -9,13 +9,29 @@ test:
 # 只运行单个方法
 # go test -v -test.run BenchmarkPoolRun -test.bench=".*"
 	@echo 'run test...'
-	@go test -race -v ./... -timeout 30m
+	@go test -v ./...
 
 
 push:
 	@git add -A && git commit -m "update" && git push origin master
 
 
-.PHONY: benchmark
-benchmark:
-	@go test -race -v -bench=. -run=none
+# 运行基准测试
+.PHONY: bench
+bench:
+	@go test -v -bench=. -run=none
+
+# 运行数据竞争检测
+.PHONY: race
+race:
+	@go test -race -v ./... -run=.*
+
+
+.PHONY: all
+all:
+	@go test -race -run ^TestPoolRun$ github.com/realjf/gopool_test -count=1 -v
+
+# lint
+.PHONY: lint
+lint:
+	@golangci-lint run -v ./...

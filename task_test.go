@@ -1,4 +1,4 @@
-package gopool
+package gopool_test
 
 import (
 	"errors"
@@ -6,13 +6,15 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/realjf/gopool"
 )
 
 func TestNewTask(t *testing.T) {
 	cases := map[string]struct {
 		args      any
-		callback  CallbackFunc
-		taskFunc  TaskFunc
+		callback  gopool.CallbackFunc
+		taskFunc  gopool.TaskFunc
 		expectval any
 	}{
 		"success": {
@@ -29,12 +31,12 @@ func TestNewTask(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			task := NewTask(tc.taskFunc, tc.callback, tc.args)
+			task := gopool.NewTask(tc.taskFunc, tc.callback, tc.args)
 			go task.Execute()
 			err := <-task.ExecChan()
 			if err != nil {
-				if errors.Is(err, ErrTimeout) {
-					t.Log(ErrTimeout.Error())
+				if errors.Is(err, gopool.ErrTimeout) {
+					t.Log(gopool.ErrTimeout.Error())
 				} else if os.IsTimeout(err) {
 					t.Log("IsErrTimeout:" + err.Error())
 				} else {

@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/TwiN/go-color"
+	color "github.com/TwiN/go-color"
 	log "github.com/sirupsen/logrus"
 )
 

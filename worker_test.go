@@ -1,4 +1,4 @@
-package gopool
+package gopool_test
 
 import (
 	"errors"
@@ -7,13 +7,15 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/realjf/gopool"
 )
 
 func TestNewWorker(t *testing.T) {
 	cases := map[string]struct {
 		args      any
-		callback  CallbackFunc
-		taskFunc  TaskFunc
+		callback  gopool.CallbackFunc
+		taskFunc  gopool.TaskFunc
 		expectval any
 		timeout   time.Duration
 	}{
@@ -33,7 +35,7 @@ func TestNewWorker(t *testing.T) {
 			args: 2,
 			taskFunc: func(args any) (any, error) {
 				time.Sleep(5 * time.Second)
-				return nil, ErrTimeout
+				return nil, gopool.ErrTimeout
 			},
 			callback: func(result any) (any, error) {
 				return nil, nil
@@ -44,7 +46,7 @@ func TestNewWorker(t *testing.T) {
 			args: 3,
 			taskFunc: func(args any) (any, error) {
 				time.Sleep(5 * time.Second)
-				return nil, ErrTimeout
+				return nil, gopool.ErrTimeout
 			},
 			callback: func(result any) (any, error) {
 				return nil, nil
@@ -54,20 +56,20 @@ func TestNewWorker(t *testing.T) {
 	var workId int = 1
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			task := NewTask(tc.taskFunc, tc.callback, tc.args)
+			task := gopool.NewTask(tc.taskFunc, tc.callback, tc.args)
 			var err error
 			if tc.timeout > 0 {
-				worker := NewWorkerWithTimeout(workId, task, tc.timeout)
+				worker := gopool.NewWorkerWithTimeout(workId, task, tc.timeout)
 				workId++
 				err = worker.Run(true)
 			} else {
-				worker := NewWorker(workId, task)
+				worker := gopool.NewWorker(workId, task)
 				workId++
 				err = worker.Run(true)
 			}
 			if err != nil {
-				if errors.Is(err, ErrTimeout) {
-					t.Log(ErrTimeout.Error())
+				if errors.Is(err, gopool.ErrTimeout) {
+					t.Log(gopool.ErrTimeout.Error())
 				} else if os.IsTimeout(err) {
 					t.Log("IsErrTimeout:" + err.Error())
 				} else {
@@ -83,8 +85,8 @@ func TestNewWorker(t *testing.T) {
 func BenchmarkWorkRun(b *testing.B) {
 	cases := map[string]struct {
 		args      any
-		callback  CallbackFunc
-		taskFunc  TaskFunc
+		callback  gopool.CallbackFunc
+		taskFunc  gopool.TaskFunc
 		expectval any
 		timeout   time.Duration
 	}{
@@ -104,7 +106,7 @@ func BenchmarkWorkRun(b *testing.B) {
 			args: 2,
 			taskFunc: func(args any) (any, error) {
 				time.Sleep(5 * time.Second)
-				return nil, ErrTimeout
+				return nil, gopool.ErrTimeout
 			},
 			callback: func(result any) (any, error) {
 				return nil, nil
@@ -115,7 +117,7 @@ func BenchmarkWorkRun(b *testing.B) {
 			args: 3,
 			taskFunc: func(args any) (any, error) {
 				time.Sleep(5 * time.Second)
-				return nil, ErrTimeout
+				return nil, gopool.ErrTimeout
 			},
 			callback: func(result any) (any, error) {
 				return nil, nil
@@ -125,20 +127,20 @@ func BenchmarkWorkRun(b *testing.B) {
 	var workId int = 1
 	for name, tc := range cases {
 		b.Run(name, func(b *testing.B) {
-			task := NewTask(tc.taskFunc, tc.callback, tc.args)
+			task := gopool.NewTask(tc.taskFunc, tc.callback, tc.args)
 			var err error
 			if tc.timeout > 0 {
-				worker := NewWorkerWithTimeout(workId, task, tc.timeout)
+				worker := gopool.NewWorkerWithTimeout(workId, task, tc.timeout)
 				workId++
 				err = worker.Run(true)
 			} else {
-				worker := NewWorker(workId, task)
+				worker := gopool.NewWorker(workId, task)
 				workId++
 				err = worker.Run(true)
 			}
 			if err != nil {
-				if errors.Is(err, ErrTimeout) {
-					b.Log(ErrTimeout.Error())
+				if errors.Is(err, gopool.ErrTimeout) {
+					b.Log(gopool.ErrTimeout.Error())
 				} else if os.IsTimeout(err) {
 					b.Log("IsErrTimeout:" + err.Error())
 				} else {
@@ -154,8 +156,8 @@ func BenchmarkWorkRun(b *testing.B) {
 func TestWorkerRace(t *testing.T) {
 	cases := map[string]struct {
 		args      any
-		callback  CallbackFunc
-		taskFunc  TaskFunc
+		callback  gopool.CallbackFunc
+		taskFunc  gopool.TaskFunc
 		expectval any
 		timeout   time.Duration
 	}{
@@ -175,7 +177,7 @@ func TestWorkerRace(t *testing.T) {
 			args: 2,
 			taskFunc: func(args any) (any, error) {
 				time.Sleep(5 * time.Second)
-				return nil, ErrTimeout
+				return nil, gopool.ErrTimeout
 			},
 			callback: func(result any) (any, error) {
 				return nil, nil
@@ -186,7 +188,7 @@ func TestWorkerRace(t *testing.T) {
 			args: 3,
 			taskFunc: func(args any) (any, error) {
 				time.Sleep(3 * time.Second)
-				return nil, ErrTimeout
+				return nil, gopool.ErrTimeout
 			},
 			callback: func(result any) (any, error) {
 				return nil, nil
@@ -196,20 +198,20 @@ func TestWorkerRace(t *testing.T) {
 	var workId int = 1
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			task := NewTask(tc.taskFunc, tc.callback, tc.args)
+			task := gopool.NewTask(tc.taskFunc, tc.callback, tc.args)
 			var err error
 			if tc.timeout > 0 {
-				worker := NewWorkerWithTimeout(workId, task, tc.timeout)
+				worker := gopool.NewWorkerWithTimeout(workId, task, tc.timeout)
 				workId++
 				err = worker.Run(true)
 			} else {
-				worker := NewWorker(workId, task)
+				worker := gopool.NewWorker(workId, task)
 				workId++
 				err = worker.Run(true)
 			}
 			if err != nil {
-				if errors.Is(err, ErrTimeout) {
-					t.Log(ErrTimeout.Error())
+				if errors.Is(err, gopool.ErrTimeout) {
+					t.Log(gopool.ErrTimeout.Error())
 				} else if os.IsTimeout(err) {
 					t.Log("IsErrTimeout:" + err.Error())
 				} else {
