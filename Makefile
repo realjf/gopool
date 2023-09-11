@@ -1,3 +1,16 @@
+# ##############################################################################
+# # File: Makefile                                                             #
+# # Project: gopool                                                            #
+# # Created Date: 2023/09/11 10:06:05                                          #
+# # Author: realjf                                                             #
+# # -----                                                                      #
+# # Last Modified: 2023/09/11 10:08:01                                         #
+# # Modified By: realjf                                                        #
+# # -----                                                                      #
+# # Copyright (c) 2023 realjf                                                  #
+# ##############################################################################
+
+
 .PHONY: test
 test:
 # 运行所有测试
@@ -35,3 +48,16 @@ all:
 .PHONY: lint
 lint:
 	@golangci-lint run -v ./...
+
+
+
+T ?=
+TT ?=
+
+
+.PHONY: tag
+tag:
+	@git tag -d ${T}
+	@git push origin :refs/tags/${T}
+	@git tag -a ${TT} -m "${TT}"
+	@git push origin ${TT}

@@ -5,9 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/realjf/gopool/v2"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/realjf/gopool"
 )
 
 func TestNewWorker(t *testing.T) {

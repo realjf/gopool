@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/realjf/gopool"
+	"github.com/realjf/gopool/v2"
 )
 
 func BenchmarkPoolRun(b *testing.B) {

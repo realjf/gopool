@@ -1,4 +1,4 @@
-module github.com/realjf/gopool
+module github.com/realjf/gopool/v2
 
 go 1.18
 
