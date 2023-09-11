@@ -1,4 +1,4 @@
-package v2_test
+package gopool_test
 
 import (
 	"fmt"

@@ -1,4 +1,4 @@
-package v2
+package gopool
 
 type IWorker interface {
 	Run(f func())

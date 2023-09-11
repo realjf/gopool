@@ -2,13 +2,18 @@
 
 Go coordinated process pool(协程池)
 
-### Usage(latest version)
+### Usage
+
+```bash
+go get github.com/realjf/gopool/v2
+
+```
 
 #### Steps needed(必要步骤)
 
 ```go
 // Set operating parameters(设置运行参数)
-pool := NewPool(10) // Concurrency number(并发数)
+pool := gopool.NewPool(10) // Concurrency number(并发数)
 pool.SetTaskNum(1000) // Task number(设置任务总数)
 // Start running(开始运行)
 pool.Run()
@@ -28,12 +33,10 @@ pool.Close()
 
 ```go
 // Set debugging flag(设置调试开关)
-func (p *Pool) SetDebug(debug bool) {
- p.debug = debug
-}
+pool.SetDebug(debug bool)
 
 // Set a per-task run timeout; the default is  no limit(设置任务执行超时时间，默认没限制)
-p.SetTimeout(time.Minute * 1)
+pool.SetTimeout(time.Minute * 1)
 
 // Get the total run time(获取总运行时间)
 pool.GetRunTime()
